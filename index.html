@@ -225,7 +225,7 @@
                         )}
                     </div>
 
-                    {/* Link Preview Box - Headline appears HERE */}
+                    {/* Link Preview Box - Headline + CTA on same line */}
                     <div style={{
                         backgroundColor: '#f0f2f5',
                         padding: '12px',
@@ -246,31 +246,35 @@
                         
                         {ad.headline && (
                             <div style={{
-                                fontSize: '16px',
-                                fontWeight: '600',
-                                color: '#050505',
-                                lineHeight: '20px',
-                                marginBottom: '8px'
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                justifyContent: 'space-between'
                             }}>
-                                {ad.headline}
+                                <div style={{
+                                    fontSize: '16px',
+                                    fontWeight: '600',
+                                    color: '#050505',
+                                    lineHeight: '20px',
+                                    flex: 1
+                                }}>
+                                    {ad.headline}
+                                </div>
+                                <button style={{
+                                    padding: '10px 20px',
+                                    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                                    color: '#050505',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    fontSize: '15px',
+                                    fontWeight: '600',
+                                    cursor: 'default',
+                                    whiteSpace: 'nowrap',
+                                    flexShrink: 0
+                                }}>
+                                    Learn more
+                                </button>
                             </div>
-                        )}
-                        
-                        {ad.recommendedCTA && (
-                            <button style={{
-                                width: '100%',
-                                padding: '9px',
-                                backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                                color: '#050505',
-                                border: 'none',
-                                borderRadius: '4px',
-                                fontSize: '14px',
-                                fontWeight: '600',
-                                cursor: 'default',
-                                textAlign: 'center'
-                            }}>
-                                {ad.recommendedCTA}
-                            </button>
                         )}
                     </div>
 
