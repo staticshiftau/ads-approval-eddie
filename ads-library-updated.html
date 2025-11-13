@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Ads Library - Swipe File</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 18px;
+            opacity: 0.95;
+        }
+
+        .filters {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 32px;
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .filter-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .search-input, .industry-select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+
+        .search-input:focus, .industry-select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .tag-filters {
+            margin-top: 16px;
+        }
+
+        .tag-filters label {
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: block;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .tag-checkboxes {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .tag-checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tag-checkbox-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .tag-checkbox-item label {
+            font-weight: 500;
+            font-size: 14px;
+            cursor: pointer;
+            margin: 0;
+        }
+
+        .results-count {
+            text-align: center;
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 24px;
+        }
+
+        .ads-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 24px;
+        }
+
+        .ad-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ad-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+
+        .ad-image {
+            width: 100%;
+            aspect-ratio: 1.91/1;
+            object-fit: cover;
+            background: #f0f2f5;
+        }
+
+        .ad-content {
+            padding: 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ad-brand {
+            font-size: 12px;
+            font-weight: 700;
+            color: #667eea;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .ad-brand a {
+            color: #667eea;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .ad-brand a:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+
+        .ad-date {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-bottom: 8px;
+        }
+
+        .ad-industry {
+            display: inline-block;
+            padding: 4px 12px;
+            background: #f1f5f9;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        .ad-headline {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 12px;
+            line-height: 1.4;
+        }
+
+        .ad-copy {
+            font-size: 14px;
+            color: #475569;
+            line-height: 1.6;
+            margin-bottom: 16px;
+            flex: 1;
+        }
+
+        .ad-cta {
+            display: inline-block;
+            padding: 10px 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            text-align: center;
+        }
+
+        .ad-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .ad-tags {
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .ad-tags-header {
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+
+        .ad-tags-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            flex: 1;
+        }
+
+        .tag-chip {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #e0e7ff;
+            color: #4338ca;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .add-tag-btn {
+            padding: 6px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .add-tag-btn:hover {
+            background: #5568d3;
+            transform: scale(1.05);
+        }
+
+        .loading {
+            text-align: center;
+            color: white;
+            font-size: 24px;
+            padding: 60px 20px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover {
+            color: #1e293b;
+        }
+
+        .tag-input-wrapper {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        .tag-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+
+        .tag-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .tag-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 10;
+            display: none;
+        }
+
+        .tag-suggestions.active {
+            display: block;
+        }
+
+        .tag-suggestion-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-size: 14px;
+        }
+
+        .tag-suggestion-item:hover {
+            background: #f1f5f9;
+        }
+
+        .current-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 24px;
+            min-height: 40px;
+        }
+
+        .current-tag-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #e0e7ff;
+            color: #4338ca;
+            border-radius: 16px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .remove-tag {
+            background: none;
+            border: none;
+            color: #4338ca;
+            cursor: pointer;
+            padding: 0;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: color 0.2s;
+        }
+
+        .remove-tag:hover {
+            color: #3730a3;
+        }
+
+        .save-tags-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .save-tags-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .save-tags-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        @media (max-width: 768px) {
+            .ads-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 32px;
+            }
+
+            .filter-row {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 Facebook Ads Library</h1>
+            <p>Curated collection of high-performing ads for inspiration</p>
+        </div>
+
+        <div class="filters">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label for="search">🔍 Search</label>
+                    <input
+                        type="text"
+                        id="search"
+                        class="search-input"
+                        placeholder="Search by brand, headline, or copy..."
+                    >
+                </div>
+                <div class="filter-group">
+                    <label for="industry">🏢 Industry</label>
+                    <select id="industry" class="industry-select">
+                        <option value="">All Industries</option>
+                    </select>
+                </div>
+            </div>
+            <div class="tag-filters">
+                <label>🏷️ Filter by Client Tags</label>
+                <div class="tag-checkboxes" id="tagCheckboxes">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+        </div>
+
+        <div class="results-count" id="resultsCount"></div>
+
+        <div class="ads-grid" id="adsGrid">
+            <div class="loading">
+                <div class="spinner"></div>
+                Loading ads...
+            </div>
+        </div>
+    </div>
+
+    <!-- Tag Edit Modal -->
+    <div class="modal" id="tagModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Edit Tags</h2>
+                <button class="modal-close" onclick="closeTagModal()">×</button>
+            </div>
+
+            <div class="tag-input-wrapper">
+                <input
+                    type="text"
+                    id="tagInput"
+                    class="tag-input"
+                    placeholder="Type to add or search tags..."
+                    autocomplete="off"
+                >
+                <div class="tag-suggestions" id="tagSuggestions"></div>
+            </div>
+
+            <div class="current-tags" id="currentTags"></div>
+
+            <button class="save-tags-btn" onclick="saveTagsToSheet()">
+                Save Tags
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            spreadsheetId: '1nY2bWQfArOSVuJycBQdEL2VP1UgGFiLzglxPmIIHXaw',
+            apiKey: 'AIzaSyABznAS0fH0tYNh6wlS_iEL08b6znNJCL8',
+            sheetName: 'Ads Library',
+            range: 'A:W',
+            updateTagsWebhook: 'https://n8n.srv951152.hstgr.cloud/webhook/ads-library-update-tags'
+        };
+
+        const PREDEFINED_TAGS = ['Eddie', 'HRAO', 'Stirling', 'Corbel', 'IGL', 'Ange', 'Static-Shift'];
+
+        let allAds = [];
+        let filteredAds = [];
+        let allUniqueTags = new Set(PREDEFINED_TAGS);
+        let selectedTagFilters = new Set();
+        let currentAdForTagEdit = null;
+
+        async function fetchAds() {
+            try {
+                const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.spreadsheetId}/values/${CONFIG.sheetName}!${CONFIG.range}?key=${CONFIG.apiKey}`;
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!data.values || data.values.length < 2) {
+                    document.getElementById('adsGrid').innerHTML = '<div class="loading">No ads found</div>';
+                    return;
+                }
+
+                const headers = data.values[0];
+                const rows = data.values.slice(1);
+
+                allAds = rows.map(row => {
+                    const ad = {};
+                    headers.forEach((header, index) => {
+                        ad[header] = row[index] || '';
+                    });
+                    return ad;
+                });
+
+                // Extract all unique tags
+                allAds.forEach(ad => {
+                    if (ad['Interface Tags']) {
+                        const tags = ad['Interface Tags'].split(',').map(t => t.trim()).filter(t => t);
+                        tags.forEach(tag => allUniqueTags.add(tag));
+                    }
+                });
+
+                populateIndustryFilter();
+                populateTagFilters();
+                filteredAds = [...allAds];
+                renderAds();
+                updateResultsCount();
+            } catch (error) {
+                console.error('Error fetching ads:', error);
+                document.getElementById('adsGrid').innerHTML = '<div class="loading">❌ Error loading ads</div>';
+            }
+        }
+
+        function populateIndustryFilter() {
+            const industries = [...new Set(allAds.map(ad => ad['Industry']).filter(i => i))].sort();
+            const select = document.getElementById('industry');
+            industries.forEach(industry => {
+                const option = document.createElement('option');
+                option.value = industry;
+                option.textContent = industry;
+                select.appendChild(option);
+            });
+        }
+
+        function populateTagFilters() {
+            const container = document.getElementById('tagCheckboxes');
+            container.innerHTML = '';
+
+            const sortedTags = Array.from(allUniqueTags).sort();
+            sortedTags.forEach(tag => {
+                const item = document.createElement('div');
+                item.className = 'tag-checkbox-item';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `tag-${tag}`;
+                checkbox.value = tag;
+                checkbox.addEventListener('change', handleTagFilterChange);
+
+                const label = document.createElement('label');
+                label.htmlFor = `tag-${tag}`;
+                label.textContent = tag;
+
+                item.appendChild(checkbox);
+                item.appendChild(label);
+                container.appendChild(item);
+            });
+        }
+
+        function handleTagFilterChange(event) {
+            const tag = event.target.value;
+            if (event.target.checked) {
+                selectedTagFilters.add(tag);
+            } else {
+                selectedTagFilters.delete(tag);
+            }
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const searchTerm = document.getElementById('search').value.toLowerCase();
+            const selectedIndustry = document.getElementById('industry').value;
+
+            filteredAds = allAds.filter(ad => {
+                // Search filter
+                const matchesSearch = !searchTerm ||
+                    ad['Brand/Advertiser'].toLowerCase().includes(searchTerm) ||
+                    ad['Ad Headline'].toLowerCase().includes(searchTerm) ||
+                    ad['Ad Copy'].toLowerCase().includes(searchTerm);
+
+                // Industry filter
+                const matchesIndustry = !selectedIndustry || ad['Industry'] === selectedIndustry;
+
+                // Tag filter (OR logic - show if ad has ANY of the selected tags)
+                let matchesTags = true;
+                if (selectedTagFilters.size > 0) {
+                    const adTags = (ad['Interface Tags'] || '').split(',').map(t => t.trim()).filter(t => t);
+                    matchesTags = adTags.some(tag => selectedTagFilters.has(tag));
+                }
+
+                return matchesSearch && matchesIndustry && matchesTags;
+            });
+
+            renderAds();
+            updateResultsCount();
+        }
+
+        function renderAds() {
+            const grid = document.getElementById('adsGrid');
+
+            if (filteredAds.length === 0) {
+                grid.innerHTML = '<div class="loading">No ads match your filters</div>';
+                return;
+            }
+
+            grid.innerHTML = filteredAds.map(ad => {
+                const imageUrl = ad['Image Preview'] || ad['Creative URL'] || '';
+                const brandLink = ad['Brands Ad Library'] || '#';
+                const landingPageUrl = ad['Landing Page URL'] || '#';
+                const startedRunningOn = ad['Started Running On'] || '';
+                const tags = (ad['Interface Tags'] || '').split(',').map(t => t.trim()).filter(t => t);
+
+                return `
+                    <div class="ad-card">
+                        <img src="${imageUrl}" alt="${ad['Ad Headline']}" class="ad-image" loading="lazy">
+                        <div class="ad-content">
+                            <div class="ad-brand">
+                                ${brandLink && brandLink !== '#' ?
+                                    `<a href="${brandLink}" target="_blank" rel="noopener noreferrer">${ad['Brand/Advertiser']}</a>` :
+                                    ad['Brand/Advertiser']
+                                }
+                            </div>
+                            <div class="ad-date">
+                                ${ad['Date Added']}${startedRunningOn ? ` • Started: ${startedRunningOn}` : ''}
+                            </div>
+                            <span class="ad-industry">${ad['Industry']}</span>
+                            <div class="ad-headline">${ad['Ad Headline']}</div>
+                            <div class="ad-copy">${ad['Ad Copy'].substring(0, 200)}${ad['Ad Copy'].length > 200 ? '...' : ''}</div>
+                            ${landingPageUrl && landingPageUrl !== '#' ?
+                                `<a href="${landingPageUrl}" target="_blank" rel="noopener noreferrer" class="ad-cta">${ad['CTA Button Text'] || 'Learn More'}</a>` :
+                                `<div class="ad-cta" style="cursor: default;">${ad['CTA Button Text'] || 'Learn More'}</div>`
+                            }
+                            <div class="ad-tags">
+                                <div style="flex: 1;">
+                                    <div class="ad-tags-header">🏷️ Tags</div>
+                                    <div class="ad-tags-list">
+                                        ${tags.length > 0 ?
+                                            tags.map(tag => `<span class="tag-chip">${tag}</span>`).join('') :
+                                            '<span style="color: #94a3b8; font-size: 12px;">No tags</span>'
+                                        }
+                                    </div>
+                                </div>
+                                <button class="add-tag-btn" onclick='openTagModal(${JSON.stringify(ad)})'>
+                                    Add Tag
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateResultsCount() {
+            document.getElementById('resultsCount').textContent =
+                `Showing ${filteredAds.length} of ${allAds.length} ads`;
+        }
+
+        function openTagModal(ad) {
+            currentAdForTagEdit = ad;
+            const modal = document.getElementById('tagModal');
+            modal.classList.add('active');
+
+            // Display current tags
+            renderCurrentTags();
+
+            // Clear input
+            document.getElementById('tagInput').value = '';
+        }
+
+        function closeTagModal() {
+            const modal = document.getElementById('tagModal');
+            modal.classList.remove('active');
+            currentAdForTagEdit = null;
+            document.getElementById('tagSuggestions').classList.remove('active');
+        }
+
+        function renderCurrentTags() {
+            const container = document.getElementById('currentTags');
+            const tags = (currentAdForTagEdit['Interface Tags'] || '').split(',').map(t => t.trim()).filter(t => t);
+
+            if (tags.length === 0) {
+                container.innerHTML = '<div style="color: #94a3b8; font-size: 14px;">No tags added yet</div>';
+                return;
+            }
+
+            container.innerHTML = tags.map(tag => `
+                <div class="current-tag-chip">
+                    ${tag}
+                    <button class="remove-tag" onclick="removeTag('${tag}')">×</button>
+                </div>
+            `).join('');
+        }
+
+        function removeTag(tagToRemove) {
+            const currentTags = (currentAdForTagEdit['Interface Tags'] || '').split(',').map(t => t.trim()).filter(t => t);
+            const updatedTags = currentTags.filter(tag => tag !== tagToRemove);
+            currentAdForTagEdit['Interface Tags'] = updatedTags.join(', ');
+            renderCurrentTags();
+        }
+
+        function handleTagInputChange(event) {
+            const input = event.target.value.toLowerCase();
+            const suggestionsDiv = document.getElementById('tagSuggestions');
+
+            if (!input) {
+                suggestionsDiv.classList.remove('active');
+                return;
+            }
+
+            const matchingTags = Array.from(allUniqueTags).filter(tag =>
+                tag.toLowerCase().includes(input)
+            );
+
+            if (matchingTags.length === 0) {
+                suggestionsDiv.classList.remove('active');
+                return;
+            }
+
+            suggestionsDiv.innerHTML = matchingTags.map(tag => `
+                <div class="tag-suggestion-item" onclick="addTagFromSuggestion('${tag}')">${tag}</div>
+            `).join('');
+
+            suggestionsDiv.classList.add('active');
+        }
+
+        function addTagFromSuggestion(tag) {
+            addTag(tag);
+            document.getElementById('tagInput').value = '';
+            document.getElementById('tagSuggestions').classList.remove('active');
+        }
+
+        function addTag(tagToAdd) {
+            const currentTags = (currentAdForTagEdit['Interface Tags'] || '').split(',').map(t => t.trim()).filter(t => t);
+
+            // Don't add duplicates
+            if (currentTags.includes(tagToAdd)) {
+                return;
+            }
+
+            currentTags.push(tagToAdd);
+            currentAdForTagEdit['Interface Tags'] = currentTags.join(', ');
+            allUniqueTags.add(tagToAdd);
+            renderCurrentTags();
+        }
+
+        async function saveTagsToSheet() {
+            const btn = document.querySelector('.save-tags-btn');
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+
+            try {
+                const response = await fetch(CONFIG.updateTagsWebhook, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        adLink: currentAdForTagEdit['Ad Link'],
+                        tags: currentAdForTagEdit['Interface Tags']
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to save tags');
+                }
+
+                const result = await response.json();
+
+                // Update the ad in allAds array
+                const adIndex = allAds.findIndex(ad => ad['Ad Link'] === currentAdForTagEdit['Ad Link']);
+                if (adIndex !== -1) {
+                    allAds[adIndex]['Interface Tags'] = currentAdForTagEdit['Interface Tags'];
+                }
+
+                // Refresh tag filters
+                populateTagFilters();
+
+                // Reapply filters and render
+                applyFilters();
+
+                alert('✅ Tags saved successfully!');
+                closeTagModal();
+            } catch (error) {
+                console.error('Error saving tags:', error);
+                alert('❌ Failed to save tags: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Save Tags';
+            }
+        }
+
+        // Event listeners
+        document.getElementById('search').addEventListener('input', applyFilters);
+        document.getElementById('industry').addEventListener('change', applyFilters);
+        document.getElementById('tagInput').addEventListener('input', handleTagInputChange);
+        document.getElementById('tagInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const value = e.target.value.trim();
+                if (value) {
+                    addTag(value);
+                    e.target.value = '';
+                    document.getElementById('tagSuggestions').classList.remove('active');
+                }
+            }
+        });
+
+        // Close modal when clicking outside
+        document.getElementById('tagModal').addEventListener('click', (e) => {
+            if (e.target.id === 'tagModal') {
+                closeTagModal();
+            }
+        });
+
+        // Initialize
+        fetchAds();
+    </script>
+</body>
+</html>
