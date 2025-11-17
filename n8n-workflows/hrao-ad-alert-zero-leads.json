@@ -61,16 +61,12 @@
             {
               "name": "limit",
               "value": "500"
-            },
-            {
-              "name": "filtering",
-              "value": "[{\"field\":\"effective_status\",\"operator\":\"IN\",\"value\":[\"ACTIVE\"]}]"
             }
           ]
         },
         "options": {}
       },
-      "name": "Fetch Today's Active Ads",
+      "name": "Fetch Today's Ad Insights",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
@@ -78,7 +74,7 @@
         -64
       ],
       "id": "fetch-today-ads",
-      "notes": "Only fetches ACTIVE ads from today"
+      "notes": "Fetches all ad insights from today - filtering happens in next node"
     },
     {
       "parameters": {
@@ -174,14 +170,14 @@
       "main": [
         [
           {
-            "node": "Fetch Today's Active Ads",
+            "node": "Fetch Today's Ad Insights",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Fetch Today's Active Ads": {
+    "Fetch Today's Ad Insights": {
       "main": [
         [
           {
