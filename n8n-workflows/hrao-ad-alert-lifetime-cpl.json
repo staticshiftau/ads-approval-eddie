@@ -1,0 +1,236 @@
+{
+  "name": "HRAO Ads Alert - Lifetime Cost Per Lead",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */3 9-17 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Check Every 3 Hours (9am-5pm AEDT)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -720,
+        -64
+      ],
+      "id": "lifetime-schedule-trigger",
+      "notes": "Runs every 3 hours during business hours (9am-5pm AEDT = 22:00-06:00 UTC)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================\n// CLIENT CONFIGURATION - EDIT THESE VALUES\n// ============================================\nconst config = {\n  clientName: 'HR Advice Online',\n  fbAdAccountId: 'act_1504596024142925',\n  slackChannelId: 'C095KT33NNN',\n  \n  // ⚠️ ALERT THRESHOLDS - Change these per client\n  maxCostPerLead: 150,           // Alert if lifetime CPL exceeds this\n  minSpendBeforeAlert: 50,       // Only alert on ads that spent at least this much\n  minImpressionsBeforeAlert: 500 // Prevent alerts on brand new ads\n};\n\nreturn [{\n  json: config\n}];"
+      },
+      "name": "Load Client Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -512,
+        -64
+      ],
+      "id": "load-lifetime-config",
+      "notes": "Configure CPL threshold and client details here"
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v24.0/{{ $json.fbAdAccountId }}/insights",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "EAAcEdar4GN8BP5fMnXintsaoqxjWbXgCehTNqkizK7txRV2bqV8OWV2rpwuK5fteu2Eq1xobHWDEWTYN1EyezhhG8i2SKkQVubaQ47tm03ShdFc4NPgSTmzZBt4edMNrirfqKLifm2nMEuSnGNJQHgHhfU6IPR45pi5KSC0UcBtHdHNQpNDi9RMO4vbQfm0lah1LrBg7VNifsSgZDZD"
+            },
+            {
+              "name": "fields",
+              "value": "ad_id,campaign_name,ad_name,adset_name,spend,impressions,clicks,actions"
+            },
+            {
+              "name": "level",
+              "value": "ad"
+            },
+            {
+              "name": "limit",
+              "value": "500"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Fetch Lifetime Ad Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -304,
+        -64
+      ],
+      "id": "fetch-lifetime-ads",
+      "notes": "Fetches LIFETIME ad data (no date_preset = all time data)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get config and API data\nconst config = $('Load Client Config').first().json;\nconst apiResponse = $input.first().json;\n\nconst ads = apiResponse.data || [];\nconst maxCPL = config.maxCostPerLead;\nconst minSpend = config.minSpendBeforeAlert;\nconst minImpressions = config.minImpressionsBeforeAlert || 0;\n\n// Debug: Log total ads received\nconsole.log(`Total ads from API: ${ads.length}`);\n\n// Find ads with high CPL or zero leads\nconst zeroLeadAds = [];\nconst highCPLAds = [];\n\nads.forEach(ad => {\n  // Extract lead count from actions array\n  let leads = 0;\n  if (ad.actions && Array.isArray(ad.actions)) {\n    // Debug: Log actions for first ad to see what we get\n    if (leads === 0 && ads.indexOf(ad) === 0) {\n      console.log('First ad actions:', JSON.stringify(ad.actions));\n    }\n    \n    // Look for ANY action type that indicates a lead\n    const leadAction = ad.actions.find(action => {\n      const type = action.action_type || '';\n      return type.includes('lead') || \n             type.includes('registration') || \n             type.includes('contact') ||\n             type === 'offsite_conversion.fb_pixel_lead' ||\n             type === 'leadgen_grouped' ||\n             type === 'onsite_conversion.lead_grouped' ||\n             type === 'omni_complete_registration';\n    });\n    \n    leads = leadAction ? parseFloat(leadAction.value) : 0;\n  }\n\n  const spend = parseFloat(ad.spend || 0);\n  const impressions = parseInt(ad.impressions || 0);\n  const clicks = parseInt(ad.clicks || 0);\n  const cpc = clicks > 0 ? (spend / clicks).toFixed(2) : 'N/A';\n  const cpl = leads > 0 ? (spend / leads).toFixed(2) : null;\n\n  // Only process ads that meet minimum criteria\n  if (spend >= minSpend && impressions >= minImpressions) {\n    const adData = {\n      adId: ad.ad_id,\n      campaignName: ad.campaign_name || 'Unknown Campaign',\n      adsetName: ad.adset_name || 'Unknown Ad Set',\n      adName: ad.ad_name || 'Unknown Ad',\n      spend: spend.toFixed(2),\n      impressions: impressions,\n      clicks: clicks,\n      leads: leads,\n      cpc: cpc,\n      cpl: cpl ? parseFloat(cpl) : null,\n      cplFormatted: cpl || 'N/A',\n      adLink: `https://business.facebook.com/adsmanager/manage/ads?act=${config.fbAdAccountId.replace('act_', '')}&selected_ad_ids=${ad.ad_id}`\n    };\n\n    // Categorize the ad\n    if (leads === 0) {\n      zeroLeadAds.push(adData);\n    } else if (cpl && cpl > maxCPL) {\n      highCPLAds.push(adData);\n    }\n  }\n});\n\n// Debug logs\nconsole.log(`Zero lead ads: ${zeroLeadAds.length}`);\nconsole.log(`High CPL ads: ${highCPLAds.length}`);\n\nreturn [{\n  json: {\n    clientName: config.clientName,\n    slackChannelId: config.slackChannelId,\n    maxCPL: maxCPL,\n    minSpend: minSpend,\n    zeroLeadAds: zeroLeadAds,\n    highCPLAds: highCPLAds,\n    totalFlagged: zeroLeadAds.length + highCPLAds.length,\n    hasAlerts: (zeroLeadAds.length + highCPLAds.length) > 0\n  }\n}];"
+      },
+      "name": "Analyze Lifetime CPL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        -64
+      ],
+      "id": "analyze-lifetime-cpl",
+      "notes": "Calculates lifetime CPL and finds problematic ads"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.hasAlerts }}",
+              "value2": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Has Problematic Ads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        112,
+        -64
+      ],
+      "id": "check-lifetime-alerts"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nlet message = `:warning: *AD PERFORMANCE ALERT - Lifetime Cost Per Lead*\\n\\n*Client:* ${data.clientName}\\n*Time:* <!date^${Math.floor(Date.now()/1000)}^{date_short_pretty} at {time}|now>\\n\\n`;\n\n// Zero Lead Ads (Urgent)\nif (data.zeroLeadAds.length > 0) {\n  message += `:rotating_light: *URGENT: ${data.zeroLeadAds.length} Ad${data.zeroLeadAds.length > 1 ? 's' : ''} with Zero Leads*\\n\\n`;\n  \n  data.zeroLeadAds.forEach((ad, index) => {\n    message += `*${index + 1}. [${ad.adsetName}] ${ad.adName}*\\n`;\n    message += `:money_with_wings: Lifetime Spend: $${ad.spend} | 0 leads\\n`;\n    message += `:chart_with_downwards_trend: ${ad.impressions.toLocaleString()} impressions | ${ad.clicks} clicks | CPC: $${ad.cpc}\\n`;\n    message += `:link: <${ad.adLink}|View & Pause Ad>\\n\\n`;\n  });\n}\n\n// High CPL Ads (Medium Priority)\nif (data.highCPLAds.length > 0) {\n  message += `:large_orange_diamond: *${data.highCPLAds.length} Ad${data.highCPLAds.length > 1 ? 's' : ''} with High Cost Per Lead*\\n`;\n  message += `_(CPL exceeds $${data.maxCPL} threshold)_\\n\\n`;\n  \n  data.highCPLAds.forEach((ad, index) => {\n    message += `*${index + 1}. [${ad.adsetName}] ${ad.adName}*\\n`;\n    message += `:moneybag: Lifetime: $${ad.spend} | ${ad.leads} leads | CPL: $${ad.cplFormatted}\\n`;\n    message += `:chart_with_downwards_trend: ${ad.impressions.toLocaleString()} impressions | ${ad.clicks} clicks\\n`;\n    message += `:link: <${ad.adLink}|View Ad Performance>\\n\\n`;\n  });\n}\n\nmessage += `\\n:white_check_mark: *Recommended Action:* Review and optimize or pause underperforming ads.`;\n\nreturn [{\n  json: {\n    message: message,\n    channelId: data.slackChannelId\n  }\n}];"
+      },
+      "name": "Build CPL Alert Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        -64
+      ],
+      "id": "build-cpl-message",
+      "notes": "Creates formatted Slack message with lifetime CPL data"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "={{ $json.channelId }}",
+          "mode": "id"
+        },
+        "text": "={{ $json.message }}",
+        "otherOptions": {}
+      },
+      "name": "Send Slack Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        496,
+        -64
+      ],
+      "id": "send-cpl-slack-alert",
+      "webhookId": "cpl-alert-webhook-id",
+      "credentials": {
+        "slackApi": {
+          "id": "HBgymDl7Jz27PEm1",
+          "name": "Slack account |Static Shift"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Check Every 3 Hours (9am-5pm AEDT)": {
+      "main": [
+        [
+          {
+            "node": "Load Client Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Client Config": {
+      "main": [
+        [
+          {
+            "node": "Fetch Lifetime Ad Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Lifetime Ad Data": {
+      "main": [
+        [
+          {
+            "node": "Analyze Lifetime CPL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze Lifetime CPL": {
+      "main": [
+        [
+          {
+            "node": "Has Problematic Ads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Problematic Ads?": {
+      "main": [
+        [
+          {
+            "node": "Build CPL Alert Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build CPL Alert Message": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1.0-lifetime-cpl-alert",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "89f97124bce97bfc128f3e8abbf22abf9fa6d7e6c6d5cd856ccf30e1fe2c2d2e"
+  },
+  "tags": [
+    {
+      "id": "v7yGe2LsJUOogLnb",
+      "name": "Static Shift"
+    }
+  ]
+}
