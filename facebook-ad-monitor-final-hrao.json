@@ -1,0 +1,727 @@
+{
+  "name": "Facebook AD Comment Monitor FINAL | HRAO",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "name": "Schedule Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        1248
+      ],
+      "id": "aabd65f6-4516-44ae-84f6-08241ad543a9"
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v24.0/act_1504596024142925/ads",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "EAAcEdar4GN8BP0CK35OZA2MUjQ4qgQkQ74vh5ZBU8BleF4ft1ZAPrwdJVWJYtJTmZCyFZC1Igac19eXAG35lhWctfzT8rAE7arYlJo78AlOeMxqgQ2qj3ZBmZCLkJ0QUwKCpLFW3HQZA3p2aCdaa4HzXcGVgtwlbrlbZAGkKwq9FXqZAcL4NdIF5rloNj6MW1QZCHR6d4jZAAp5B8ZB8TzVXsc5LmZAQZDZD"
+            },
+            {
+              "name": "fields",
+              "value": "id,name,status,creative{effective_object_story_id}"
+            },
+            {
+              "name": "limit",
+              "value": "25"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get Active Ads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1456,
+        1248
+      ],
+      "id": "2dc0ac23-38cc-4a0d-bb40-e50bd45f5052",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ !!$json.error }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Check for API Error",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1648,
+        1248
+      ],
+      "id": "2677b195-bce2-413d-89c4-6968418528cf"
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $input.item.json.error || {};\nconst errorMessage = error.message || 'Unknown Facebook API error';\n\nreturn {\n  json: {\n    errorMessage: errorMessage,\n    timestamp: new Date().toLocaleString('en-AU')\n  }\n};"
+      },
+      "name": "Format API Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1856,
+        1168
+      ],
+      "id": "c007a415-1e7d-4c72-8a4a-604049439cd6"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C096MFMFDHB",
+          "mode": "id"
+        },
+        "text": "=🚨 *FACEBOOK API ERROR*\n\n❌ *Error:* {{ $json.errorMessage }}\n📱 *API:* Get Active Ads\n🕐 *Time:* {{ $json.timestamp }}\n\n_The workflow will retry in 15 minutes._",
+        "otherOptions": {}
+      },
+      "name": "Send API Error to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        2064,
+        1168
+      ],
+      "id": "46cd3fd1-8bae-4eac-85b1-0462db6f2c7d",
+      "webhookId": "0244b733-7d9f-4258-819b-1a39d00442e0",
+      "credentials": {
+        "slackApi": {
+          "id": "HBgymDl7Jz27PEm1",
+          "name": "Slack account |Static Shift"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data",
+        "options": {}
+      },
+      "name": "Split Ads",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1856,
+        1328
+      ],
+      "id": "41c2e74a-905d-4fdf-92ed-59159ae317c9"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract the post ID from the ad creative - ONLY ACTIVE ADS\ntry {\n  const ad = $input.item.json;\n  \n  // FILTER: Only process ACTIVE ads\n  if (ad.status !== 'ACTIVE') {\n    console.log('⏸️ Skipping non-active ad:', ad.name, '- Status:', ad.status);\n    return null;\n  }\n  \n  console.log('✓ Processing ACTIVE ad:', ad.name);\n  \n  // Check if creative exists\n  if (!ad.creative) {\n    console.log('❌ No creative field found for ad:', ad.id, ad.name);\n    return null;\n  }\n  \n  if (!ad.creative.effective_object_story_id) {\n    console.log('❌ No effective_object_story_id in creative for ad:', ad.id);\n    return null;\n  }\n  \n  const postId = ad.creative.effective_object_story_id;\n  console.log('✓ Found post ID:', postId, 'for ad:', ad.name);\n  \n  return {\n    json: {\n      adId: ad.id,\n      adName: ad.name,\n      adStatus: ad.status,\n      postId: postId\n    }\n  };\n} catch (error) {\n  console.error('❌ Error extracting post ID:', error.message);\n  return null;\n}"
+      },
+      "name": "Extract Post ID from Ad",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2064,
+        1328
+      ],
+      "id": "61eca3fd-9395-459c-bb31-cdce5f24d3b3"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.postId }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "name": "Has Post ID?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2272,
+        1328
+      ],
+      "id": "eed673f8-c9d8-4023-a13a-a7388fb2cd9e"
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v24.0/{{ $json.postId }}/comments",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "EAAcEdar4GN8BP5z8WnVjDqPZBQUny66qkMnbrZB24j51iUitKtMzYCUyGYaN3w39gjQdDftpkN1hFuZCJXUOQ3ZBX7L2shTvlBxzV2AkYYmKdmKtUTLYIOrsGWgLuz1ZC3W8qWU5EYLYAU3SM3g0Tc8gGx5VDxUBuZCCIBePwMvGSKiBGqNZCjVRPKc2zuOSeiPbiyu8a6IXVFvuZCGiswZDZD"
+            },
+            {
+              "name": "fields",
+              "value": "id,message,from,created_time,permalink_url"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get Comments for Ad Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        2480,
+        1328
+      ],
+      "id": "16c568eb-b37c-4880-9ca6-7cc974ff362a",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.data }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "name": "Has Comments?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2688,
+        1328
+      ],
+      "id": "c9c9a8f9-2ed5-46ef-a882-e7e56a49351a"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data",
+        "options": {}
+      },
+      "name": "Split Comments",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        2896,
+        1328
+      ],
+      "id": "a213fe89-6567-409f-9dc8-a49e1e1b9882"
+    },
+    {
+      "parameters": {
+        "jsCode": "// CLIENT CONFIGURATION\nconst clients = {\n  'act_1504596024142925': {\n    name: 'HR Advice Online',\n    channel: '#notifications-hr-advice-online',\n    priority: 'high'\n  }\n};\n\ntry {\n  const adAccountId = 'act_1504596024142925';\n  const clientConfig = clients[adAccountId];\n  \n  if (!clientConfig) {\n    throw new Error(`No client config found for ad account: ${adAccountId}`);\n  }\n  \n  // Check if comment is new (within last 20 minutes)\n  const comment = $input.item.json;\n  const commentTime = new Date(comment.created_time);\n  const now = new Date();\n  const minutesSinceComment = (now - commentTime) / 1000 / 60;\n  \n  console.log('Processing comment:', comment.id, 'Age:', minutesSinceComment.toFixed(2), 'minutes');\n  \n  // Only process if comment is recent\n  if (minutesSinceComment > 20) {\n    console.log('Skipping old comment:', comment.id);\n    return null;\n  }\n  \n  // Get ad details from earlier in workflow\n  const adData = $('Extract Post ID from Ad').item.json;\n  \n  // Build notification data\n  return {\n    json: {\n      clientName: clientConfig.name,\n      clientChannel: clientConfig.channel,\n      adId: adData.adId,\n      adName: adData.adName,\n      postId: adData.postId,\n      commentId: comment.id,\n      commenterName: comment.from?.name || 'Unknown',\n      commenterId: comment.from?.id || '',\n      commentMessage: comment.message || '',\n      commentTime: comment.created_time,\n      commentUrl: comment.permalink_url || `https://facebook.com/${adData.postId}`,\n      priority: clientConfig.priority,\n      timestamp: new Date().toISOString(),\n      date: new Date().toISOString().split('T')[0]\n    }\n  };\n} catch (error) {\n  console.error('❌ Error processing comment data:', error.message);\n  return null;\n}"
+      },
+      "name": "Process Comment Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3104,
+        1328
+      ],
+      "id": "c4f9944e-7553-49f1-bd4a-e3f14e4f9901"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.commentId }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "name": "Filter New Comments",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3312,
+        1328
+      ],
+      "id": "46a132c2-8b41-46de-86c0-34a39a82da00"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C096MFMFDHB",
+          "mode": "id"
+        },
+        "text": "=🗨️ *NEW COMMENT ON FACEBOOK AD*\n\n*Client:* {{ $json.clientName }}\n*Ad Name:* {{ $json.adName }}\n\n💬 *Comment:* {{ $json.commentMessage }}\n\n👤 *From:* {{ $json.commenterName }}\n🕐 *Posted:* {{ new Date($json.commentTime).toLocaleString('en-AU') }}\n\n<{{ $json.commentUrl }}|View Comment>",
+        "otherOptions": {}
+      },
+      "name": "Send Slack Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        3520,
+        1312
+      ],
+      "id": "cb58d6bc-8e92-4abb-90fb-fd902dda674b",
+      "webhookId": "4a61c078-4cec-4172-a46c-1dded154880b",
+      "credentials": {
+        "slackApi": {
+          "id": "HBgymDl7Jz27PEm1",
+          "name": "Slack account |Static Shift"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 17 * * 1-5"
+            }
+          ]
+        }
+      },
+      "name": "Daily Summary - 5 PM Weekdays",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        1648
+      ],
+      "id": "97819258-df06-4c97-8a7c-8f967bf7efe1",
+      "notes": "Triggers at 5 PM on weekdays (Mon-Fri)"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1WKcbEPkbO-ljR5xJHURWMdg1ip6MiNwFsdmQK52hp6g",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Comment Log",
+          "mode": "name"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Date",
+              "lookupValue": "={{ new Date().toISOString().split('T')[0] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get Today's Comments",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        1456,
+        1648
+      ],
+      "id": "87dee035-eaa8-49bf-8e4d-b223fc0ce368",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "P8he4u8JbXd5X78e",
+          "name": "Google Sheets account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst comments = items.map(item => item.json);\n\nconst today = new Date().toISOString().split('T')[0];\n\nconsole.log(`Generating summary for ${comments.length} comments`);\n\n// Group comments by ad\nconst commentsByAd = {};\ncomments.forEach(c => {\n  if (!commentsByAd[c['Ad ID']]) {\n    commentsByAd[c['Ad ID']] = {\n      adName: c['Ad Name'],\n      adId: c['Ad ID'],\n      comments: []\n    };\n  }\n  commentsByAd[c['Ad ID']].comments.push({\n    commenter: c['Commenter'],\n    message: c['Comment'],\n    timestamp: c['Timestamp'],\n    url: c['Comment URL']\n  });\n});\n\nreturn {\n  json: {\n    hasComments: comments.length > 0,\n    totalComments: comments.length,\n    totalAds: Object.keys(commentsByAd).length,\n    commentsByAd: commentsByAd,\n    date: today\n  }\n};"
+      },
+      "name": "Generate Daily Summary Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1648,
+        1648
+      ],
+      "id": "e2966a02-e3fc-4e2f-b15a-7ba8cd95ed8c"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.item.json;\nconst date = new Date(data.date).toLocaleDateString('en-AU', { \n  weekday: 'long', \n  year: 'numeric', \n  month: 'long', \n  day: 'numeric' \n});\n\nif (!data.hasComments) {\n  return {\n    json: {\n      text: `📊 *DAILY FACEBOOK ADS SUMMARY*\\n\\n📅 ${date}\\n\\n✅ *No new comments today*\\n\\nAll ads are running smoothly with no customer engagement.`\n    }\n  };\n}\n\n// Build detailed summary\nlet message = `📊 *DAILY FACEBOOK ADS SUMMARY*\\n\\n📅 ${date}\\n\\n`;\nmessage += `💬 Total Comments: *${data.totalComments}*\\n`;\nmessage += `📢 Ads with Comments: *${data.totalAds}*\\n\\n`;\nmessage += `━━━━━━━━━━━━━━━━━━\\n\\n`;\n\n// Add details for each ad\nfor (const [adId, adData] of Object.entries(data.commentsByAd)) {\n  message += `🎯 *${adData.adName}*\\n`;\n  message += `   Comments: ${adData.comments.length}\\n\\n`;\n  \n  adData.comments.forEach((comment, idx) => {\n    const commentTime = new Date(comment.timestamp).toLocaleString('en-AU', {\n      hour: '2-digit',\n      minute: '2-digit'\n    });\n    message += `   ${idx + 1}. 👤 *${comment.commenter}*\\n`;\n    message += `      💬 \"${comment.message.substring(0, 150)}${comment.message.length > 150 ? '...' : ''}\"\\n`;\n    message += `      🕐 ${commentTime}\\n`;\n    message += `      <${comment.url}|View Comment>\\n\\n`;\n  });\n  \n  message += `━━━━━━━━━━━━━━━━━━\\n\\n`;\n}\n\nmessage += `✨ End of daily summary`;\n\nreturn {\n  json: {\n    text: message\n  }\n};"
+      },
+      "name": "Format Summary Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1856,
+        1648
+      ],
+      "id": "67d63dbf-b177-4a93-b7fb-626b578f12d7"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C096MFMFDHB",
+          "mode": "id"
+        },
+        "text": "={{ $json.text }}",
+        "otherOptions": {}
+      },
+      "name": "Send Daily Summary to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        2064,
+        1648
+      ],
+      "id": "5a033725-e558-4f88-871d-a7840e8ad0f7",
+      "webhookId": "803552ff-d546-47b4-8a42-b08b1c317ec5",
+      "credentials": {
+        "slackApi": {
+          "id": "HBgymDl7Jz27PEm1",
+          "name": "Slack account |Static Shift"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1WKcbEPkbO-ljR5xJHURWMdg1ip6MiNwFsdmQK52hp6g",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Comment Log",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Date": "={{ $('Process Comment Data').item.json.date }}",
+            "Timestamp": "={{ $('Process Comment Data').item.json.timestamp }}",
+            "Ad Name": "={{ $('Process Comment Data').item.json.adName }}",
+            "Ad ID": "={{ $('Process Comment Data').item.json.postId }}",
+            "Commenter": "={{ $('Process Comment Data').item.json.commenterName }}",
+            "Comment": "={{ $('Process Comment Data').item.json.commentMessage }}",
+            "Comment URL": "={{ $('Process Comment Data').item.json.commentUrl }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Date",
+              "displayName": "Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Ad Name",
+              "displayName": "Ad Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Ad ID",
+              "displayName": "Ad ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Commenter",
+              "displayName": "Commenter",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Comment",
+              "displayName": "Comment",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Comment URL",
+              "displayName": "Comment URL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "name": "Log to Google Sheet1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [
+        3712,
+        1312
+      ],
+      "id": "c3e3b549-046e-4454-b9f8-a23955bbf888",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "P8he4u8JbXd5X78e",
+          "name": "Google Sheets account 3"
+        }
+      },
+      "notes": "Logs all comments to Google Sheet for daily summary"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Active Ads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Ads": {
+      "main": [
+        [
+          {
+            "node": "Check for API Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for API Error": {
+      "main": [
+        [
+          {
+            "node": "Format API Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Split Ads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format API Error": {
+      "main": [
+        [
+          {
+            "node": "Send API Error to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Ads": {
+      "main": [
+        [
+          {
+            "node": "Extract Post ID from Ad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Post ID from Ad": {
+      "main": [
+        [
+          {
+            "node": "Has Post ID?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Post ID?": {
+      "main": [
+        [
+          {
+            "node": "Get Comments for Ad Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Comments for Ad Post": {
+      "main": [
+        [
+          {
+            "node": "Has Comments?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Comments?": {
+      "main": [
+        [
+          {
+            "node": "Split Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Comments": {
+      "main": [
+        [
+          {
+            "node": "Process Comment Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Comment Data": {
+      "main": [
+        [
+          {
+            "node": "Filter New Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter New Comments": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Slack Notification": {
+      "main": [
+        [
+          {
+            "node": "Log to Google Sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Summary - 5 PM Weekdays": {
+      "main": [
+        [
+          {
+            "node": "Get Today's Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Today's Comments": {
+      "main": [
+        [
+          {
+            "node": "Generate Daily Summary Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Daily Summary Data": {
+      "main": [
+        [
+          {
+            "node": "Format Summary Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Summary Message": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Summary to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "4d7b0543-d6ee-41ee-a017-36b9b262c1c0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "89f97124bce97bfc128f3e8abbf22abf9fa6d7e6c6d5cd856ccf30e1fe2c2d2e"
+  },
+  "id": "kqpmzrokLzZ66T8z",
+  "tags": [
+    {
+      "createdAt": "2025-11-10T03:10:44.871Z",
+      "updatedAt": "2025-11-10T03:10:44.871Z",
+      "id": "v7yGe2LsJUOogLnb",
+      "name": "Static Shift"
+    }
+  ]
+}
