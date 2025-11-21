@@ -955,10 +955,10 @@
                             </div>
                         ) : (
                             <div style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                gap: '24px'
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(2, 600px)',
+                                gap: '24px',
+                                justifyContent: 'center'
                             }}>
                                 {currentAds.map((ad) => (
                                     <FacebookAdCard
