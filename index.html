@@ -955,8 +955,9 @@
                             </div>
                         ) : (
                             <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fit, minmax(600px, 1fr))',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
                                 gap: '24px'
                             }}>
                                 {currentAds.map((ad) => (
