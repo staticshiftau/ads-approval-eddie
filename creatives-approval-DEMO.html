@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creative Assets Approval Portal - DEMO</title>
+    <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+        }
+        .demo-banner {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 20px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <!-- Demo Banner -->
+    <div class="demo-banner">
+        🎨 DEMO MODE - Using Sample Data | Try approving/rejecting creatives to see how it works!
+    </div>
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // DEMO DATA - Hardcoded sample data
+        const DEMO_CLIENT_INFO = {
+            businessName: 'Acme Fashion Co.',
+            websiteUrl: 'https://acmefashion.com',
+            destinationUrl: 'https://acmefashion.com/shop',
+            profileImage: 'https://via.placeholder.com/150/667eea/ffffff?text=AF'
+        };
+
+        const DEMO_AD_COPIES = [
+            {
+                rowIndex: 2,
+                copyId: 'COPY-001',
+                campaignName: 'Summer Sale 2024',
+                adCopyText: 'Save 50% on all summer items! Limited time only. Don\'t miss out on our biggest sale of the year. Shop now and refresh your wardrobe for less.',
+                headline: '50% Off Summer Sale',
+                notes: 'High priority campaign',
+                status: 'Active'
+            },
+            {
+                rowIndex: 3,
+                copyId: 'COPY-002',
+                campaignName: 'Winter Collection Launch',
+                adCopyText: 'Stay warm and stylish with our new winter collection. Premium quality, affordable prices. Limited stock available.',
+                headline: 'New Winter Arrivals',
+                notes: 'Test different creative angles',
+                status: 'Active'
+            },
+            {
+                rowIndex: 4,
+                copyId: 'COPY-003',
+                campaignName: 'Flash Sale - 24H',
+                adCopyText: '24-hour flash sale! Up to 70% off selected items. Shop now before they\'re gone!',
+                headline: 'Flash Sale - 70% Off',
+                notes: 'Urgent - 24hrs only',
+                status: 'Active'
+            }
+        ];
+
+        const DEMO_CREATIVE_ASSETS = [
+            // Summer Sale creatives
+            {
+                rowIndex: 2,
+                assetId: 'ASSET-001',
+                copyId: 'COPY-001',
+                assetName: 'Summer Hero Image v1',
+                assetUrl: 'https://images.unsplash.com/photo-1523359346063-d879354169f9?w=600',
+                assetType: 'Image',
+                status: 'Approved',
+                feedbackNotes: 'Perfect! Use this one.',
+                approvedBy: 'Sarah',
+                approvedDate: '2024-01-15T10:30:00'
+            },
+            {
+                rowIndex: 3,
+                assetId: 'ASSET-002',
+                copyId: 'COPY-001',
+                assetName: 'Summer Hero Image v2',
+                assetUrl: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600',
+                assetType: 'Image',
+                status: 'Needs Edit',
+                feedbackNotes: 'Too dark, brighten it up please',
+                approvedBy: 'Sarah',
+                approvedDate: '2024-01-15T10:32:00'
+            },
+            {
+                rowIndex: 4,
+                assetId: 'ASSET-003',
+                copyId: 'COPY-001',
+                assetName: 'Summer Product Collage',
+                assetUrl: 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?w=600',
+                assetType: 'Image',
+                status: 'Pending',
+                feedbackNotes: '',
+                approvedBy: '',
+                approvedDate: ''
+            },
+            {
+                rowIndex: 5,
+                assetId: 'ASSET-004',
+                copyId: 'COPY-001',
+                assetName: 'Summer Lifestyle Shot',
+                assetUrl: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=600',
+                assetType: 'Image',
+                status: 'Rejected',
+                feedbackNotes: 'Not on brand, too casual',
+                approvedBy: 'Sarah',
+                approvedDate: '2024-01-15T10:40:00'
+            },
+
+            // Winter Collection creatives
+            {
+                rowIndex: 6,
+                assetId: 'ASSET-005',
+                copyId: 'COPY-002',
+                assetName: 'Winter Lifestyle Portrait',
+                assetUrl: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=600',
+                assetType: 'Image',
+                status: 'Pending',
+                feedbackNotes: '',
+                approvedBy: '',
+                approvedDate: ''
+            },
+            {
+                rowIndex: 7,
+                assetId: 'ASSET-006',
+                copyId: 'COPY-002',
+                assetName: 'Winter Product Grid',
+                assetUrl: 'https://images.unsplash.com/photo-1445205170230-053b83016050?w=600',
+                assetType: 'Image',
+                status: 'Pending',
+                feedbackNotes: '',
+                approvedBy: '',
+                approvedDate: ''
+            },
+            {
+                rowIndex: 8,
+                assetId: 'ASSET-007',
+                copyId: 'COPY-002',
+                assetName: 'Winter Coat Close-up',
+                assetUrl: 'https://images.unsplash.com/photo-1539533018447-63fcce2678e3?w=600',
+                assetType: 'Image',
+                status: 'Pending',
+                feedbackNotes: '',
+                approvedBy: '',
+                approvedDate: ''
+            },
+
+            // Flash Sale creatives
+            {
+                rowIndex: 9,
+                assetId: 'ASSET-008',
+                copyId: 'COPY-003',
+                assetName: 'Flash Sale Red Banner',
+                assetUrl: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=600',
+                assetType: 'Image',
+                status: 'Approved',
+                feedbackNotes: 'Strong urgency, great!',
+                approvedBy: 'John',
+                approvedDate: '2024-01-17T14:20:00'
+            },
+            {
+                rowIndex: 10,
+                assetId: 'ASSET-009',
+                copyId: 'COPY-003',
+                assetName: 'Flash Sale Yellow Banner',
+                assetUrl: 'https://images.unsplash.com/photo-1607082349566-187342175e2f?w=600',
+                assetType: 'Image',
+                status: 'Approved',
+                feedbackNotes: 'Good alternative option',
+                approvedBy: 'John',
+                approvedDate: '2024-01-17T14:22:00'
+            }
+        ];
+
+        // Creative Asset Component
+        const CreativeAssetCard = ({ asset, updating, onStatusUpdate, editNotes, onNotesChange }) => {
+            const [mediaError, setMediaError] = useState(false);
+            const isVideo = asset.assetType?.toLowerCase() === 'video';
+
+            const getStatusColor = (status) => {
+                switch(status?.toLowerCase()) {
+                    case 'approved': return '#10b981';
+                    case 'needs edit': return '#f59e0b';
+                    case 'rejected': return '#ef4444';
+                    default: return '#6b7280';
+                }
+            };
+
+            const getStatusIcon = (status) => {
+                switch(status?.toLowerCase()) {
+                    case 'approved': return '✓';
+                    case 'needs edit': return '✏️';
+                    case 'rejected': return '✗';
+                    default: return '⏳';
+                }
+            };
+
+            const isPending = !asset.status || asset.status.toLowerCase() === 'pending';
+
+            return (
+                <div style={{
+                    backgroundColor: 'white',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    border: `2px solid ${getStatusColor(asset.status)}`,
+                    position: 'relative'
+                }}>
+                    {/* Status Badge */}
+                    <div style={{
+                        position: 'absolute',
+                        top: '8px',
+                        right: '8px',
+                        backgroundColor: getStatusColor(asset.status),
+                        color: 'white',
+                        padding: '4px 12px',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        zIndex: 10,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                    }}>
+                        {getStatusIcon(asset.status)} {asset.status || 'Pending'}
+                    </div>
+
+                    {/* Media Preview */}
+                    <div style={{
+                        width: '100%',
+                        height: '280px',
+                        backgroundColor: '#f0f2f5',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative'
+                    }}>
+                        {asset.assetUrl && !mediaError ? (
+                            isVideo ? (
+                                <video
+                                    src={asset.assetUrl}
+                                    controls
+                                    style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: 'contain'
+                                    }}
+                                    onError={() => setMediaError(true)}
+                                />
+                            ) : (
+                                <img
+                                    src={asset.assetUrl}
+                                    alt={asset.assetName}
+                                    style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: 'contain'
+                                    }}
+                                    onError={() => setMediaError(true)}
+                                />
+                            )
+                        ) : asset.assetUrl && mediaError ? (
+                            <div style={{ textAlign: 'center', padding: '20px', color: '#ef4444' }}>
+                                <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
+                                    Failed to load {asset.assetType?.toLowerCase() || 'media'}
+                                </div>
+                                <a
+                                    href={asset.assetUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ fontSize: '12px', color: '#1877f2', textDecoration: 'underline' }}
+                                >
+                                    Open link directly
+                                </a>
+                            </div>
+                        ) : (
+                            <div style={{ textAlign: 'center', color: '#65676b' }}>
+                                <div style={{ fontSize: '48px', marginBottom: '8px' }}>
+                                    {isVideo ? '🎥' : '📷'}
+                                </div>
+                                <div style={{ fontSize: '14px' }}>No media</div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Asset Info */}
+                    <div style={{ padding: '12px' }}>
+                        <div style={{
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            color: '#050505',
+                            marginBottom: '4px'
+                        }}>
+                            {asset.assetName || 'Unnamed Asset'}
+                        </div>
+                        <div style={{
+                            fontSize: '12px',
+                            color: '#65676b',
+                            marginBottom: '12px'
+                        }}>
+                            Type: {asset.assetType || 'Unknown'}
+                        </div>
+
+                        {/* Feedback Section */}
+                        {isPending ? (
+                            <textarea
+                                placeholder="Add feedback notes (optional)..."
+                                value={editNotes[asset.rowIndex] || ''}
+                                onChange={(e) => onNotesChange(asset.rowIndex, e.target.value)}
+                                disabled={updating[asset.rowIndex]}
+                                style={{
+                                    width: '100%',
+                                    minHeight: '60px',
+                                    padding: '8px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #e4e6eb',
+                                    fontSize: '13px',
+                                    fontFamily: 'inherit',
+                                    resize: 'vertical',
+                                    marginBottom: '8px',
+                                    opacity: updating[asset.rowIndex] ? 0.5 : 1
+                                }}
+                            />
+                        ) : asset.feedbackNotes && (
+                            <div style={{
+                                backgroundColor: '#fffbeb',
+                                padding: '8px',
+                                borderRadius: '6px',
+                                marginBottom: '8px',
+                                border: '1px solid #fbbf24'
+                            }}>
+                                <div style={{
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    color: '#92400e',
+                                    marginBottom: '4px',
+                                    textTransform: 'uppercase'
+                                }}>
+                                    📝 Feedback:
+                                </div>
+                                <div style={{
+                                    fontSize: '13px',
+                                    color: '#78350f',
+                                    whiteSpace: 'pre-wrap',
+                                    lineHeight: '1.4'
+                                }}>
+                                    {asset.feedbackNotes}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        {isPending ? (
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr 1fr',
+                                gap: '6px'
+                            }}>
+                                {[
+                                    { label: '✓', status: 'Approved', color: '#10b981' },
+                                    { label: '✏️', status: 'Needs Edit', color: '#f59e0b' },
+                                    { label: '✗', status: 'Rejected', color: '#ef4444' }
+                                ].map((btn, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => onStatusUpdate(asset, btn.status)}
+                                        disabled={updating[asset.rowIndex]}
+                                        style={{
+                                            padding: '8px',
+                                            backgroundColor: updating[asset.rowIndex] ? '#ccc' : btn.color,
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            fontSize: '16px',
+                                            fontWeight: '600',
+                                            cursor: updating[asset.rowIndex] ? 'not-allowed' : 'pointer',
+                                            transition: 'opacity 0.2s'
+                                        }}
+                                        onMouseOver={(e) => { if (!updating[asset.rowIndex]) e.target.style.opacity = '0.9'; }}
+                                        onMouseOut={(e) => { e.target.style.opacity = '1'; }}
+                                    >
+                                        {updating[asset.rowIndex] ? '⏳' : btn.label}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => onStatusUpdate(asset, 'Pending')}
+                                disabled={updating[asset.rowIndex]}
+                                style={{
+                                    width: '100%',
+                                    padding: '8px',
+                                    backgroundColor: updating[asset.rowIndex] ? '#ccc' : '#6b7280',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    fontSize: '13px',
+                                    fontWeight: '600',
+                                    cursor: updating[asset.rowIndex] ? 'not-allowed' : 'pointer'
+                                }}
+                            >
+                                {updating[asset.rowIndex] ? '⏳ Reverting...' : '↩️ Reset to Pending'}
+                            </button>
+                        )}
+
+                        {/* Approval Info */}
+                        {!isPending && asset.approvedBy && (
+                            <div style={{
+                                fontSize: '11px',
+                                color: '#65676b',
+                                marginTop: '8px',
+                                textAlign: 'center'
+                            }}>
+                                By {asset.approvedBy} • {asset.approvedDate ? new Date(asset.approvedDate).toLocaleDateString('en-AU', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                }) : ''}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Ad Copy Card with Creatives
+        const AdCopyCard = ({ copy, creatives, updating, onStatusUpdate, editNotes, onNotesChange }) => {
+            return (
+                <div style={{
+                    backgroundColor: 'white',
+                    borderRadius: '12px',
+                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                    overflow: 'hidden',
+                    marginBottom: '24px'
+                }}>
+                    {/* Copy Header */}
+                    <div style={{
+                        padding: '20px',
+                        backgroundColor: '#f8f9fa',
+                        borderBottom: '2px solid #e4e6eb'
+                    }}>
+                        <div style={{
+                            fontSize: '12px',
+                            fontWeight: '600',
+                            color: '#1877f2',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                            marginBottom: '8px'
+                        }}>
+                            📊 {copy.campaignName || 'Campaign'}
+                        </div>
+                        {copy.headline && (
+                            <div style={{
+                                fontSize: '18px',
+                                fontWeight: '700',
+                                color: '#050505',
+                                marginBottom: '8px',
+                                lineHeight: '1.3'
+                            }}>
+                                {copy.headline}
+                            </div>
+                        )}
+                        {copy.adCopyText && (
+                            <div style={{
+                                fontSize: '14px',
+                                color: '#050505',
+                                lineHeight: '1.5',
+                                whiteSpace: 'pre-wrap'
+                            }}>
+                                {copy.adCopyText}
+                            </div>
+                        )}
+                        {copy.notes && (
+                            <div style={{
+                                fontSize: '13px',
+                                color: '#65676b',
+                                marginTop: '8px',
+                                fontStyle: 'italic'
+                            }}>
+                                Note: {copy.notes}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Creatives Grid */}
+                    <div style={{ padding: '20px' }}>
+                        <div style={{
+                            fontSize: '14px',
+                            fontWeight: '600',
+                            color: '#050505',
+                            marginBottom: '16px'
+                        }}>
+                            Creative Assets ({creatives.length})
+                        </div>
+                        {creatives.length > 0 ? (
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                                gap: '16px'
+                            }}>
+                                {creatives.map((asset) => (
+                                    <CreativeAssetCard
+                                        key={asset.rowIndex}
+                                        asset={asset}
+                                        updating={updating}
+                                        onStatusUpdate={onStatusUpdate}
+                                        editNotes={editNotes}
+                                        onNotesChange={onNotesChange}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div style={{
+                                textAlign: 'center',
+                                padding: '40px',
+                                color: '#65676b',
+                                backgroundColor: '#f0f2f5',
+                                borderRadius: '8px'
+                            }}>
+                                <div style={{ fontSize: '32px', marginBottom: '8px' }}>📭</div>
+                                <div>No creative assets yet</div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // Main Portal Component
+        const CreativeApprovalPortal = () => {
+            const [adCopies, setAdCopies] = useState(DEMO_AD_COPIES);
+            const [creativeAssets, setCreativeAssets] = useState(DEMO_CREATIVE_ASSETS);
+            const [clientInfo] = useState(DEMO_CLIENT_INFO);
+            const [editNotes, setEditNotes] = useState({});
+            const [updating, setUpdating] = useState({});
+            const [activeFilter, setActiveFilter] = useState('all');
+
+            const updateAssetStatus = (asset, newStatus) => {
+                const notes = editNotes[asset.rowIndex] || '';
+                setUpdating(prev => ({ ...prev, [asset.rowIndex]: true }));
+
+                // Simulate API delay
+                setTimeout(() => {
+                    setCreativeAssets(prev =>
+                        prev.map(a =>
+                            a.rowIndex === asset.rowIndex
+                                ? {
+                                    ...a,
+                                    status: newStatus,
+                                    feedbackNotes: notes,
+                                    approvedBy: 'Demo User',
+                                    approvedDate: new Date().toISOString()
+                                }
+                                : a
+                        )
+                    );
+
+                    setEditNotes(prev => {
+                        const updated = { ...prev };
+                        delete updated[asset.rowIndex];
+                        return updated;
+                    });
+
+                    setUpdating(prev => {
+                        const updated = { ...prev };
+                        delete updated[asset.rowIndex];
+                        return updated;
+                    });
+
+                    showNotification(`✓ Creative ${newStatus.toLowerCase()}!`, 'success');
+                }, 500);
+            };
+
+            const handleNotesChange = (rowIndex, value) => {
+                setEditNotes(prev => ({ ...prev, [rowIndex]: value }));
+            };
+
+            const showNotification = (message, type) => {
+                const notification = document.createElement('div');
+                notification.textContent = message;
+                notification.style.cssText = `
+                    position: fixed; top: 60px; right: 20px; padding: 16px 24px;
+                    background-color: ${type === 'success' ? '#10b981' : '#ef4444'};
+                    color: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    z-index: 9999; animation: slideIn 0.3s ease-out;
+                `;
+                document.body.appendChild(notification);
+                setTimeout(() => {
+                    notification.style.animation = 'slideOut 0.3s ease-in';
+                    setTimeout(() => notification.remove(), 300);
+                }, 3000);
+            };
+
+            const getFilteredCopies = () => {
+                if (activeFilter === 'all') return adCopies;
+
+                return adCopies.filter(copy => {
+                    const copyCreatives = creativeAssets.filter(asset => asset.copyId === copy.copyId);
+                    if (copyCreatives.length === 0) return false;
+
+                    return copyCreatives.some(asset =>
+                        asset.status?.toLowerCase() === activeFilter
+                    );
+                });
+            };
+
+            const getStats = () => {
+                const total = creativeAssets.length;
+                const pending = creativeAssets.filter(a => !a.status || a.status.toLowerCase() === 'pending').length;
+                const approved = creativeAssets.filter(a => a.status?.toLowerCase() === 'approved').length;
+                const needsEdit = creativeAssets.filter(a => a.status?.toLowerCase() === 'needs edit').length;
+                const rejected = creativeAssets.filter(a => a.status?.toLowerCase() === 'rejected').length;
+
+                return { total, pending, approved, needsEdit, rejected };
+            };
+
+            const stats = getStats();
+            const filteredCopies = getFilteredCopies();
+
+            return (
+                <div style={{ minHeight: '100vh', backgroundColor: '#f0f2f5', padding: '20px' }}>
+                    <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
+                        {/* Header */}
+                        <div style={{
+                            marginBottom: '20px',
+                            padding: '20px',
+                            backgroundColor: 'white',
+                            borderRadius: '12px',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: '12px'
+                        }}>
+                            <div>
+                                <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#050505', marginBottom: '4px' }}>
+                                    🎨 Creative Assets Approval Portal
+                                </h1>
+                                <p style={{ fontSize: '14px', color: '#65676b' }}>
+                                    {clientInfo?.businessName || 'Client'} - Review and approve creative assets
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => window.location.reload()}
+                                style={{
+                                    padding: '10px 20px',
+                                    backgroundColor: '#1877f2',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    fontSize: '14px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                }}
+                                onMouseOver={(e) => e.target.style.opacity = '0.9'}
+                                onMouseOut={(e) => e.target.style.opacity = '1'}
+                            >
+                                🔄 Reset Demo
+                            </button>
+                        </div>
+
+                        {/* Stats Cards */}
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                            gap: '12px',
+                            marginBottom: '20px'
+                        }}>
+                            {[
+                                { count: stats.total, label: 'Total Assets', color: '#6b7280' },
+                                { count: stats.pending, label: 'Pending', color: '#1877f2' },
+                                { count: stats.approved, label: 'Approved', color: '#10b981' },
+                                { count: stats.needsEdit, label: 'Needs Edit', color: '#f59e0b' },
+                                { count: stats.rejected, label: 'Rejected', color: '#ef4444' }
+                            ].map((stat, idx) => (
+                                <div key={idx} style={{
+                                    backgroundColor: 'white',
+                                    padding: '16px',
+                                    borderRadius: '8px',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                    textAlign: 'center'
+                                }}>
+                                    <div style={{ fontSize: '32px', fontWeight: '700', color: stat.color }}>
+                                        {stat.count}
+                                    </div>
+                                    <div style={{ fontSize: '13px', color: '#65676b', marginTop: '4px' }}>
+                                        {stat.label}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Filter Tabs */}
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                            {[
+                                { id: 'all', label: 'All Campaigns' },
+                                { id: 'pending', label: 'Has Pending' },
+                                { id: 'approved', label: 'Has Approved' },
+                                { id: 'needs edit', label: 'Has Needs Edit' },
+                                { id: 'rejected', label: 'Has Rejected' }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveFilter(tab.id)}
+                                    style={{
+                                        padding: '10px 20px',
+                                        backgroundColor: activeFilter === tab.id ? '#1877f2' : 'white',
+                                        color: activeFilter === tab.id ? 'white' : '#65676b',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        fontSize: '14px',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Ad Copies & Creatives */}
+                        {filteredCopies.map((copy) => {
+                            const copyCreatives = creativeAssets.filter(asset => asset.copyId === copy.copyId);
+                            return (
+                                <AdCopyCard
+                                    key={copy.rowIndex}
+                                    copy={copy}
+                                    creatives={copyCreatives}
+                                    updating={updating}
+                                    onStatusUpdate={updateAssetStatus}
+                                    editNotes={editNotes}
+                                    onNotesChange={handleNotesChange}
+                                />
+                            );
+                        })}
+                    </div>
+
+                    <style>
+                        {`
+                            @keyframes slideIn {
+                                from { transform: translateX(400px); opacity: 0; }
+                                to { transform: translateX(0); opacity: 1; }
+                            }
+                            @keyframes slideOut {
+                                from { transform: translateX(0); opacity: 1; }
+                                to { transform: translateX(400px); opacity: 0; }
+                            }
+                            @media (max-width: 768px) {
+                                div[style*="gridTemplateColumns"] {
+                                    grid-template-columns: 1fr !important;
+                                }
+                            }
+                        `}
+                    </style>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<CreativeApprovalPortal />);
+    </script>
+</body>
+</html>
