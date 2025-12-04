@@ -1,0 +1,1713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static Shift Ads Library</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #1a1f2e;
+            min-height: 100vh;
+        }
+
+        /* Global Search Bar */
+        .global-search {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .global-search-wrapper {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .search-icon {
+            font-size: 20px;
+            color: #64748b;
+        }
+
+        .global-search-input {
+            flex: 1;
+            padding: 14px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.2s;
+            background: white;
+        }
+
+        .global-search-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        /* Main Container */
+        .main-container {
+            display: flex;
+            max-width: 1600px;
+            margin: 0 auto;
+            min-height: calc(100vh - 80px);
+            position: relative;
+        }
+
+        /* Sidebar Toggle Button */
+        .sidebar-toggle {
+            position: fixed;
+            top: 100px;
+            left: 20px;
+            width: 48px;
+            height: 48px;
+            background: white;
+            border: none;
+            border-radius: 50%;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            z-index: 1001;
+            transition: all 0.3s;
+        }
+
+        .sidebar-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+        }
+
+        /* Filter Sidebar */
+        .filter-sidebar {
+            width: 320px;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            padding: 24px;
+            overflow-y: auto;
+            height: calc(100vh - 80px);
+            position: sticky;
+            top: 0;
+            transition: all 0.3s ease;
+            border-right: 1px solid rgba(255,255,255,0.3);
+            box-shadow: 2px 0 12px rgba(0,0,0,0.08);
+        }
+
+        .filter-sidebar.collapsed {
+            margin-left: -320px;
+        }
+
+        .sidebar-header {
+            margin-bottom: 24px;
+        }
+
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+
+        .sidebar-subtitle {
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .filter-section {
+            margin-bottom: 24px;
+        }
+
+        .filter-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .filter-dropdown {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #1e293b;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-dropdown:hover {
+            border-color: #cbd5e1;
+        }
+
+        .filter-dropdown:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .clear-filters-btn {
+            width: 100%;
+            padding: 12px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 24px;
+        }
+
+        .clear-filters-btn:hover {
+            background: #dc2626;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+
+        /* Tag Section in Sidebar */
+        .tag-search-input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 12px;
+            transition: all 0.2s;
+        }
+
+        .tag-search-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .sidebar-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .sidebar-tag-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #e0e7ff;
+            color: #4338ca;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .sidebar-tag-pill:hover {
+            background: #c7d2fe;
+        }
+
+        .sidebar-tag-pill.selected {
+            background: #4338ca;
+            color: white;
+        }
+
+        /* Ad Results Area */
+        .ad-results-area {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            transition: all 0.3s ease;
+        }
+
+        .ad-results-area.expanded {
+            margin-left: 0;
+        }
+
+        .results-header {
+            margin-bottom: 24px;
+        }
+
+        .results-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 16px;
+            background: rgba(255,255,255,0.95);
+            padding: 16px 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .stats-left {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .stat-item {
+            font-size: 14px;
+            color: #64748b;
+        }
+
+        .stat-item strong {
+            color: #1e293b;
+            font-weight: 700;
+        }
+
+        .sort-dropdown {
+            padding: 10px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .sort-dropdown:hover {
+            border-color: #cbd5e1;
+        }
+
+        .sort-dropdown:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        /* Active Filter Pills */
+        .active-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .active-filter-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            animation: slideIn 0.2s ease-out;
+        }
+
+        .remove-filter {
+            background: none;
+            border: none;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 18px;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background 0.2s;
+        }
+
+        .remove-filter:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Facebook Ad Card (ORIGINAL DESIGN) */
+        .ads-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 24px;
+        }
+
+        .ad-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .ad-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+
+        /* Info Button */
+        .info-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 32px;
+            height: 32px;
+            background: rgba(102, 126, 234, 0.9);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            transition: all 0.2s;
+        }
+
+        .info-btn:hover {
+            background: #667eea;
+            transform: scale(1.1);
+        }
+
+        /* Facebook Ad Header */
+        .ad-header {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .ad-profile {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e4e6eb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            font-weight: 600;
+            color: #65676b;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .ad-profile img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .ad-header-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .ad-business-name {
+            font-size: 15px;
+            font-weight: 600;
+            color: #050505;
+            line-height: 20px;
+        }
+
+        .ad-business-name a {
+            color: #050505;
+            text-decoration: none;
+        }
+
+        .ad-business-name a:hover {
+            text-decoration: underline;
+        }
+
+        .ad-sponsored {
+            font-size: 13px;
+            color: #65676b;
+            line-height: 16px;
+        }
+
+
+        /* Ad Body Copy - FIXED */
+        .ad-body-copy {
+            padding: 0 16px 12px 16px;
+            font-size: 15px;
+            line-height: 20px;
+            color: #050505;
+        }
+
+        .ad-copy-text {
+            white-space: pre-line;
+            word-break: break-word;
+        }
+
+        .see-more {
+            color: #65676b;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline;
+        }
+
+        .see-more:hover {
+            text-decoration: underline;
+        }
+
+        /* Ad Image */
+        .ad-image-container {
+            width: 100%;
+            background: #f0f2f5;
+        }
+
+        .ad-image {
+            width: 100%;
+            display: block;
+            object-fit: cover;
+        }
+
+        /* Link Preview Box */
+        .ad-link-preview {
+            background: #f0f2f5;
+            padding: 12px;
+            border-top: 1px solid #e4e6eb;
+        }
+
+        .ad-website-url {
+            font-size: 12px;
+            color: #65676b;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            line-height: 16px;
+            letter-spacing: 0.3px;
+        }
+
+        .ad-headline-cta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            justify-content: space-between;
+        }
+
+        .ad-headline {
+            font-size: 16px;
+            font-weight: 600;
+            color: #050505;
+            line-height: 20px;
+            flex: 1;
+        }
+
+        .ad-cta-button {
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.05);
+            color: #050505;
+            border: none;
+            border-radius: 4px;
+            font-size: 15px;
+            font-weight: 600;
+            white-space: nowrap;
+            flex-shrink: 0;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .ad-cta-button:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        /* Like/Comment/Share Bar */
+        .ad-actions {
+            padding: 4px 16px;
+            display: flex;
+            border-top: 1px solid #e4e6eb;
+            background: white;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 8px;
+            background: transparent;
+            border: none;
+            color: #65676b;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: default;
+            text-align: center;
+        }
+
+        /* Tags Section */
+        .ad-started-date {
+            padding: 8px 16px;
+            background: #ffffff;
+            border-top: 1px solid #e4e6eb;
+            font-size: 12px;
+            color: #65676b;
+        }
+
+        .ad-started-date strong {
+            color: #050505;
+            font-weight: 600;
+        }
+
+        .ad-tags-section {
+            padding: 16px;
+            background: #f8f9fa;
+            border-top: 1px solid #e4e6eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .ad-tags-content {
+            flex: 1;
+        }
+
+        .ad-tags-header {
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+
+        .ad-tags-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .tag-chip {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #e0e7ff;
+            color: #4338ca;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .add-tag-btn {
+            padding: 8px 16px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .add-tag-btn:hover {
+            background: #5568d3;
+            transform: scale(1.05);
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover {
+            color: #1e293b;
+        }
+
+        /* Ad Info Modal */
+        .ad-link-button {
+            display: block;
+            width: 100%;
+            padding: 14px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            transition: all 0.2s;
+        }
+
+        .ad-link-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .info-item {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+        }
+
+        .info-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .info-value {
+            font-size: 14px;
+            color: #1e293b;
+            font-weight: 500;
+        }
+
+        .info-value.rating {
+            color: #fbbf24;
+            font-size: 16px;
+        }
+
+        .info-section {
+            margin-bottom: 20px;
+        }
+
+        .info-section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        .info-text {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #1e293b;
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            white-space: pre-line;
+        }
+
+        /* Tag Modal */
+        .tag-input-wrapper {
+            position: relative;
+            margin-bottom: 24px;
+        }
+
+        .tag-input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+
+        .tag-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .tag-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 10;
+            display: none;
+        }
+
+        .tag-suggestions.active {
+            display: block;
+        }
+
+        .tag-suggestion-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-size: 14px;
+        }
+
+        .tag-suggestion-item:hover {
+            background: #f1f5f9;
+        }
+
+        .current-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 24px;
+            min-height: 40px;
+        }
+
+        .current-tag-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: #e0e7ff;
+            color: #4338ca;
+            border-radius: 16px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .remove-tag {
+            background: none;
+            border: none;
+            color: #4338ca;
+            cursor: pointer;
+            padding: 0;
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: color 0.2s;
+        }
+
+        .remove-tag:hover {
+            color: #3730a3;
+        }
+
+        .save-tags-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .save-tags-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .save-tags-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            text-align: center;
+            color: white;
+            font-size: 24px;
+            padding: 60px 20px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .sidebar-toggle {
+                display: flex;
+            }
+
+            .filter-sidebar {
+                position: fixed;
+                left: 0;
+                top: 80px;
+                z-index: 1000;
+            }
+
+            .filter-sidebar.collapsed {
+                margin-left: -320px;
+            }
+
+            .ads-grid {
+                grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .ads-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Global Search Bar -->
+    <div class="global-search">
+        <div class="global-search-wrapper">
+            <span class="search-icon">🔍</span>
+            <input
+                type="text"
+                id="globalSearch"
+                class="global-search-input"
+                placeholder="Search ads by headline, copy, or advertiser name..."
+            >
+        </div>
+    </div>
+
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
+        ☰
+    </button>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Filter Sidebar -->
+        <aside class="filter-sidebar" id="filterSidebar">
+            <div class="sidebar-header">
+                <h2 class="sidebar-title">Filters</h2>
+                <p class="sidebar-subtitle">Refine your ad search</p>
+            </div>
+
+            <!-- Industry Filter -->
+            <div class="filter-section">
+                <label class="filter-label">Industry</label>
+                <select id="industryFilter" class="filter-dropdown">
+                    <option value="">All Industries</option>
+                </select>
+            </div>
+
+            <!-- Funnel Stage Filter -->
+            <div class="filter-section">
+                <label class="filter-label">Funnel Stage</label>
+                <select id="funnelStageFilter" class="filter-dropdown">
+                    <option value="">All Stages</option>
+                </select>
+            </div>
+
+            <!-- Offer Type Filter -->
+            <div class="filter-section">
+                <label class="filter-label">Offer Type</label>
+                <select id="offerTypeFilter" class="filter-dropdown">
+                    <option value="">All Offer Types</option>
+                </select>
+            </div>
+
+            <!-- Tags Section -->
+            <div class="filter-section">
+                <label class="filter-label">Client Tags</label>
+                <input
+                    type="text"
+                    id="tagSearchInput"
+                    class="tag-search-input"
+                    placeholder="Search tags..."
+                >
+                <div class="sidebar-tags" id="sidebarTags"></div>
+            </div>
+
+            <!-- Clear Filters Button -->
+            <button class="clear-filters-btn" onclick="clearAllFilters()">
+                🗑️ Clear All Filters
+            </button>
+        </aside>
+
+        <!-- Ad Results Area -->
+        <main class="ad-results-area" id="adResultsArea">
+            <div class="results-header">
+                <div class="results-stats">
+                    <div class="stats-left">
+                        <div class="stat-item">
+                            Total Ads: <strong id="totalAds">0</strong>
+                        </div>
+                        <div class="stat-item">
+                            Showing: <strong id="showingAds">0</strong> ads
+                        </div>
+                    </div>
+                    <select id="sortBy" class="sort-dropdown">
+                        <option value="newest">Sort by: Newest</option>
+                        <option value="oldest">Sort by: Oldest</option>
+                    </select>
+                </div>
+
+                <!-- Active Filter Pills -->
+                <div class="active-filters" id="activeFilters"></div>
+            </div>
+
+            <!-- Ads Grid -->
+            <div class="ads-grid" id="adsGrid">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading ads...
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Ad Info Modal -->
+    <div class="modal" id="infoModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Ad Details</h2>
+                <button class="modal-close" onclick="closeInfoModal()">×</button>
+            </div>
+            <div id="infoModalBody"></div>
+        </div>
+    </div>
+
+    <!-- Tag Edit Modal -->
+    <div class="modal" id="tagModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Edit Tags</h2>
+                <button class="modal-close" onclick="closeTagModal()">×</button>
+            </div>
+
+            <div class="tag-input-wrapper">
+                <input
+                    type="text"
+                    id="tagInput"
+                    class="tag-input"
+                    placeholder="Type to add or search tags..."
+                    autocomplete="off"
+                >
+                <div class="tag-suggestions" id="tagSuggestions"></div>
+            </div>
+
+            <div class="current-tags" id="currentTags"></div>
+
+            <button class="save-tags-btn" onclick="saveTagsToSheet()">
+                Save Tags
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            spreadsheetId: '1nY2bWQfArOSVuJycBQdEL2VP1UgGFiLzglxPmIIHXaw',
+            apiKey: 'AIzaSyABznAS0fH0tYNh6wlS_iEL08b6znNJCL8',
+            sheetName: 'Ads Library',
+            range: 'A:W',
+            updateTagsWebhook: 'https://n8n.srv951152.hstgr.cloud/webhook/ads-library-update-tags'
+        };
+
+        const PREDEFINED_TAGS = ['Eddie', 'HRAO', 'Stirling', 'Corbel', 'IGL', 'Ange', 'Static-Shift'];
+
+        let allAds = [];
+        let filteredAds = [];
+        let allUniqueTags = new Set(PREDEFINED_TAGS);
+        let currentAdIndexForTagEdit = null;
+        let activeFilters = {
+            search: '',
+            industry: '',
+            funnelStage: '',
+            offerType: '',
+            tags: new Set()
+        };
+
+        async function fetchAds() {
+            try {
+                const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.spreadsheetId}/values/${CONFIG.sheetName}!${CONFIG.range}?key=${CONFIG.apiKey}`;
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!data.values || data.values.length < 2) {
+                    document.getElementById('adsGrid').innerHTML = '<div class="loading">No ads found</div>';
+                    return;
+                }
+
+                const headers = data.values[0];
+                const rows = data.values.slice(1);
+
+                allAds = rows.map(row => {
+                    const ad = {};
+                    headers.forEach((header, index) => {
+                        ad[header] = row[index] || '';
+                    });
+                    return ad;
+                });
+
+                // Extract all unique tags
+                allAds.forEach(ad => {
+                    if (ad['Interface Tags']) {
+                        const tags = ad['Interface Tags'].split(',').map(t => t.trim()).filter(t => t);
+                        tags.forEach(tag => allUniqueTags.add(tag));
+                    }
+                });
+
+                populateFilters();
+                filteredAds = [...allAds];
+                sortAds();
+                renderAds();
+                updateStats();
+            } catch (error) {
+                console.error('Error fetching ads:', error);
+                document.getElementById('adsGrid').innerHTML = '<div class="loading">❌ Error loading ads</div>';
+            }
+        }
+
+        function populateFilters() {
+            // Populate Industry Filter
+            const industries = [...new Set(allAds.map(ad => ad['Industry']).filter(i => i))].sort();
+            const industrySelect = document.getElementById('industryFilter');
+            industries.forEach(industry => {
+                const option = document.createElement('option');
+                option.value = industry;
+                option.textContent = industry;
+                industrySelect.appendChild(option);
+            });
+
+            // Populate Funnel Stage Filter
+            const funnelStages = [...new Set(allAds.map(ad => ad['Funnel Stage']).filter(i => i))].sort();
+            const funnelSelect = document.getElementById('funnelStageFilter');
+            funnelStages.forEach(stage => {
+                const option = document.createElement('option');
+                option.value = stage;
+                option.textContent = stage;
+                funnelSelect.appendChild(option);
+            });
+
+            // Populate Offer Type Filter
+            const offerTypes = [...new Set(allAds.map(ad => ad['Offer Type']).filter(i => i))].sort();
+            const offerSelect = document.getElementById('offerTypeFilter');
+            offerTypes.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                offerSelect.appendChild(option);
+            });
+
+            // Populate Tags
+            populateSidebarTags();
+        }
+
+        function populateSidebarTags() {
+            const container = document.getElementById('sidebarTags');
+            container.innerHTML = '';
+
+            const sortedTags = Array.from(allUniqueTags).sort();
+            sortedTags.forEach(tag => {
+                const pill = document.createElement('div');
+                pill.className = 'sidebar-tag-pill';
+                if (activeFilters.tags.has(tag)) {
+                    pill.classList.add('selected');
+                }
+                pill.textContent = tag;
+                pill.onclick = () => toggleTagFilter(tag);
+                container.appendChild(pill);
+            });
+        }
+
+        function toggleTagFilter(tag) {
+            if (activeFilters.tags.has(tag)) {
+                activeFilters.tags.delete(tag);
+            } else {
+                activeFilters.tags.add(tag);
+            }
+            populateSidebarTags();
+            applyFilters();
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('filterSidebar');
+            const toggle = document.getElementById('sidebarToggle');
+            sidebar.classList.toggle('collapsed');
+            toggle.textContent = sidebar.classList.contains('collapsed') ? '☰' : '✕';
+        }
+
+        function applyFilters() {
+            filteredAds = allAds.filter(ad => {
+                const matchesSearch = !activeFilters.search ||
+                    ad['Brand/Advertiser'].toLowerCase().includes(activeFilters.search) ||
+                    ad['Ad Headline'].toLowerCase().includes(activeFilters.search) ||
+                    ad['Ad Copy'].toLowerCase().includes(activeFilters.search);
+
+                const matchesIndustry = !activeFilters.industry || ad['Industry'] === activeFilters.industry;
+                const matchesFunnelStage = !activeFilters.funnelStage || ad['Funnel Stage'] === activeFilters.funnelStage;
+                const matchesOfferType = !activeFilters.offerType || ad['Offer Type'] === activeFilters.offerType;
+
+                let matchesTags = true;
+                if (activeFilters.tags.size > 0) {
+                    const adTags = (ad['Interface Tags'] || '').split(',').map(t => t.trim()).filter(t => t);
+                    matchesTags = adTags.some(tag => activeFilters.tags.has(tag));
+                }
+
+                return matchesSearch && matchesIndustry && matchesFunnelStage && matchesOfferType && matchesTags;
+            });
+
+            sortAds();
+            renderAds();
+            updateStats();
+            renderActiveFilters();
+        }
+
+        function sortAds() {
+            const sortBy = document.getElementById('sortBy').value;
+            switch(sortBy) {
+                case 'newest':
+                    filteredAds.sort((a, b) => new Date(b['Date Added']) - new Date(a['Date Added']));
+                    break;
+                case 'oldest':
+                    filteredAds.sort((a, b) => new Date(a['Date Added']) - new Date(b['Date Added']));
+                    break;
+            }
+        }
+
+        function renderActiveFilters() {
+            const container = document.getElementById('activeFilters');
+            container.innerHTML = '';
+
+            if (activeFilters.search) {
+                container.appendChild(createFilterPill('Search', activeFilters.search, () => {
+                    document.getElementById('globalSearch').value = '';
+                    activeFilters.search = '';
+                    applyFilters();
+                }));
+            }
+
+            if (activeFilters.industry) {
+                container.appendChild(createFilterPill('Industry', activeFilters.industry, () => {
+                    document.getElementById('industryFilter').value = '';
+                    activeFilters.industry = '';
+                    applyFilters();
+                }));
+            }
+
+            if (activeFilters.funnelStage) {
+                container.appendChild(createFilterPill('Funnel Stage', activeFilters.funnelStage, () => {
+                    document.getElementById('funnelStageFilter').value = '';
+                    activeFilters.funnelStage = '';
+                    applyFilters();
+                }));
+            }
+
+            if (activeFilters.offerType) {
+                container.appendChild(createFilterPill('Offer Type', activeFilters.offerType, () => {
+                    document.getElementById('offerTypeFilter').value = '';
+                    activeFilters.offerType = '';
+                    applyFilters();
+                }));
+            }
+
+            activeFilters.tags.forEach(tag => {
+                container.appendChild(createFilterPill('Tag', tag, () => {
+                    toggleTagFilter(tag);
+                }));
+            });
+        }
+
+        function createFilterPill(label, value, onRemove) {
+            const pill = document.createElement('div');
+            pill.className = 'active-filter-pill';
+            pill.innerHTML = `
+                <span>${label}: ${value}</span>
+                <button class="remove-filter">×</button>
+            `;
+            pill.querySelector('.remove-filter').onclick = onRemove;
+            return pill;
+        }
+
+        function clearAllFilters() {
+            document.getElementById('globalSearch').value = '';
+            document.getElementById('industryFilter').value = '';
+            document.getElementById('funnelStageFilter').value = '';
+            document.getElementById('offerTypeFilter').value = '';
+
+            activeFilters = {
+                search: '',
+                industry: '',
+                funnelStage: '',
+                offerType: '',
+                tags: new Set()
+            };
+
+            populateSidebarTags();
+            applyFilters();
+        }
+
+        function renderAds() {
+            const grid = document.getElementById('adsGrid');
+
+            if (filteredAds.length === 0) {
+                grid.innerHTML = '<div class="loading">No ads match your filters</div>';
+                return;
+            }
+
+            grid.innerHTML = filteredAds.map((ad, filteredIndex) => {
+                // Find the original index in allAds array
+                const originalIndex = allAds.findIndex(a => a['Ad Link'] === ad['Ad Link']);
+
+                const imageUrl = ad['Image Preview'] || ad['Creative URL'] || '';
+                const brandLink = ad['Brands Ad Library'] || '#';
+                const landingPageUrl = ad['Landing Page URL'] || '#';
+                const tags = (ad['Interface Tags'] || '').split(',').map(t => t.trim()).filter(t => t);
+                const businessName = ad['Brand/Advertiser'] || 'Business';
+                const adCopy = ad['Ad Copy'] || '';
+                const shouldCollapse = adCopy.length > 125;
+
+                return `
+                    <div class="ad-card">
+                        <!-- Info Button -->
+                        <button class="info-btn" onclick='openInfoModal(${originalIndex})' title="More Info">
+                            i
+                        </button>
+
+                        <!-- Facebook Ad Header -->
+                        <div class="ad-header">
+                            <div class="ad-profile">
+                                ${businessName.charAt(0).toUpperCase()}
+                            </div>
+                            <div class="ad-header-info">
+                                <div class="ad-business-name">
+                                    ${brandLink && brandLink !== '#' ?
+                                        `<a href="${brandLink}" target="_blank" rel="noopener noreferrer">${businessName}</a>` :
+                                        businessName
+                                    }
+                                </div>
+                                <div class="ad-sponsored">Sponsored</div>
+                            </div>
+                        </div>
+
+                        <!-- Ad Body Copy -->
+                        ${adCopy ? `
+                            <div class="ad-body-copy">
+                                <span class="ad-copy-text" id="adCopyText${filteredIndex}">${shouldCollapse ? adCopy.substring(0, 125) + '...' : adCopy}</span>${shouldCollapse ? `<span class="see-more" onclick="toggleAdCopy(${filteredIndex}, \`${adCopy.replace(/`/g, '\\`').replace(/\$/g, '\\$')}\`)" id="seeMore${filteredIndex}"> See more</span>` : ''}
+                            </div>
+                        ` : ''}
+
+                        <!-- Ad Image -->
+                        <div class="ad-image-container">
+                            ${imageUrl ? `
+                                <img src="${imageUrl}" alt="${ad['Ad Headline']}" class="ad-image" loading="lazy">
+                            ` : `
+                                <div style="padding: 60px 20px; text-align: center; color: #65676b;">
+                                    <div style="font-size: 48px; margin-bottom: 8px;">📷</div>
+                                    <div style="font-size: 14px;">No image</div>
+                                </div>
+                            `}
+                        </div>
+
+                        <!-- Link Preview Box -->
+                        <div class="ad-link-preview">
+                            ${ad['Landing Page URL'] ? `
+                                <div class="ad-website-url">
+                                    ${ad['Landing Page URL'].replace(/^https?:\/\/(www\.)?/, '').split(/[/?#]/)[0]}
+                                </div>
+                            ` : ''}
+                            ${ad['Ad Headline'] ? `
+                                <div class="ad-headline-cta">
+                                    <div class="ad-headline">${ad['Ad Headline']}</div>
+                                    ${landingPageUrl && landingPageUrl !== '#' ?
+                                        `<a href="${landingPageUrl}" target="_blank" rel="noopener noreferrer" class="ad-cta-button">${ad['CTA Button Text'] || 'Learn more'}</a>` :
+                                        `<button class="ad-cta-button">${ad['CTA Button Text'] || 'Learn more'}</button>`
+                                    }
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- Like/Comment/Share Bar -->
+                        <div class="ad-actions">
+                            <button class="action-btn">👍 Like</button>
+                            <button class="action-btn">💬 Comment</button>
+                            <button class="action-btn">↗️ Share</button>
+                        </div>
+
+                        <!-- Started Running On -->
+                        ${ad['Started Running On'] ? `
+                            <div class="ad-started-date">
+                                📅 Started Running On: <strong>${ad['Started Running On']}</strong>
+                            </div>
+                        ` : ''}
+
+                        <!-- Tags Section -->
+                        <div class="ad-tags-section">
+                            <div class="ad-tags-content">
+                                <div class="ad-tags-header">🏷️ Tags</div>
+                                <div class="ad-tags-list">
+                                    ${tags.length > 0 ?
+                                        tags.map(tag => `<span class="tag-chip">${tag}</span>`).join('') :
+                                        '<span style="color: #94a3b8; font-size: 12px;">No tags</span>'
+                                    }
+                                </div>
+                            </div>
+                            <button class="add-tag-btn" onclick='openTagModal(${originalIndex})'>
+                                Add Tag
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleAdCopy(index, fullText) {
+            const textElement = document.getElementById(`adCopyText${index}`);
+            const seeMoreElement = document.getElementById(`seeMore${index}`);
+            const currentText = textElement.textContent;
+
+            if (currentText.endsWith('...')) {
+                textElement.textContent = fullText;
+                seeMoreElement.textContent = ' See less';
+            } else {
+                textElement.textContent = fullText.substring(0, 125) + '...';
+                seeMoreElement.textContent = ' See more';
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('totalAds').textContent = allAds.length;
+            document.getElementById('showingAds').textContent = filteredAds.length;
+        }
+
+        // Info Modal Functions
+        function openInfoModal(adIndex) {
+            const ad = allAds[adIndex];
+            const modal = document.getElementById('infoModal');
+            const body = document.getElementById('infoModalBody');
+
+            const rating = parseInt(ad['Rating']) || 0;
+            const stars = rating > 0 ? '⭐'.repeat(rating) : 'Not rated';
+
+            body.innerHTML = `
+                ${ad['Ad Link'] ? `
+                    <a href="${ad['Ad Link']}" target="_blank" rel="noopener noreferrer" class="ad-link-button">
+                        🔗 View Original Ad on Facebook
+                    </a>
+                ` : ''}
+
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Ad Type</div>
+                        <div class="info-value">${ad['Ad Type'] || 'N/A'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Funnel Stage</div>
+                        <div class="info-value">${ad['Funnel Stage'] || 'N/A'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Campaign Objective</div>
+                        <div class="info-value">${ad['Campaign Objective'] || 'N/A'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Offer Type</div>
+                        <div class="info-value">${ad['Offer Type'] || 'N/A'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Hook Type</div>
+                        <div class="info-value">${ad['Hook Type'] || 'N/A'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Visual Style</div>
+                        <div class="info-value">${ad['Visual Style'] || 'N/A'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Rating</div>
+                        <div class="info-value rating">${stars}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Date Added</div>
+                        <div class="info-value">${ad['Date Added'] || 'N/A'}</div>
+                    </div>
+                </div>
+
+                ${ad['Why It Works'] ? `
+                    <div class="info-section">
+                        <div class="info-section-title">💡 Why It Works</div>
+                        <div class="info-text">${ad['Why It Works']}</div>
+                    </div>
+                ` : ''}
+
+                ${ad['What We Can Adapt'] ? `
+                    <div class="info-section">
+                        <div class="info-section-title">🔧 What We Can Adapt</div>
+                        <div class="info-text">${ad['What We Can Adapt']}</div>
+                    </div>
+                ` : ''}
+            `;
+
+            modal.classList.add('active');
+        }
+
+        function closeInfoModal() {
+            document.getElementById('infoModal').classList.remove('active');
+        }
+
+        // Tag Modal Functions
+        function openTagModal(adIndex) {
+            currentAdIndexForTagEdit = adIndex;
+            const modal = document.getElementById('tagModal');
+            modal.classList.add('active');
+            renderCurrentTags();
+            document.getElementById('tagInput').value = '';
+        }
+
+        function closeTagModal() {
+            const modal = document.getElementById('tagModal');
+            modal.classList.remove('active');
+            currentAdIndexForTagEdit = null;
+            document.getElementById('tagSuggestions').classList.remove('active');
+        }
+
+        function renderCurrentTags() {
+            const container = document.getElementById('currentTags');
+            const ad = allAds[currentAdIndexForTagEdit];
+            const tags = (ad['Interface Tags'] || '').split(',').map(t => t.trim()).filter(t => t);
+
+            if (tags.length === 0) {
+                container.innerHTML = '<div style="color: #94a3b8; font-size: 14px;">No tags added yet</div>';
+                return;
+            }
+
+            container.innerHTML = tags.map(tag => `
+                <div class="current-tag-chip">
+                    ${tag}
+                    <button class="remove-tag" onclick="removeTag('${tag.replace(/'/g, "\\'")}')">×</button>
+                </div>
+            `).join('');
+        }
+
+        function removeTag(tagToRemove) {
+            const ad = allAds[currentAdIndexForTagEdit];
+            const currentTags = (ad['Interface Tags'] || '').split(',').map(t => t.trim()).filter(t => t);
+            const updatedTags = currentTags.filter(tag => tag !== tagToRemove);
+            ad['Interface Tags'] = updatedTags.join(', ');
+            renderCurrentTags();
+        }
+
+        function handleTagInputChange(event) {
+            const input = event.target.value.toLowerCase();
+            const suggestionsDiv = document.getElementById('tagSuggestions');
+
+            if (!input) {
+                suggestionsDiv.classList.remove('active');
+                return;
+            }
+
+            const matchingTags = Array.from(allUniqueTags).filter(tag =>
+                tag.toLowerCase().includes(input)
+            );
+
+            if (matchingTags.length === 0) {
+                suggestionsDiv.classList.remove('active');
+                return;
+            }
+
+            suggestionsDiv.innerHTML = matchingTags.map(tag => `
+                <div class="tag-suggestion-item" onclick="addTagFromSuggestion('${tag.replace(/'/g, "\\'")}')">${tag}</div>
+            `).join('');
+
+            suggestionsDiv.classList.add('active');
+        }
+
+        function addTagFromSuggestion(tag) {
+            addTag(tag);
+            document.getElementById('tagInput').value = '';
+            document.getElementById('tagSuggestions').classList.remove('active');
+        }
+
+        function addTag(tagToAdd) {
+            const ad = allAds[currentAdIndexForTagEdit];
+            const currentTags = (ad['Interface Tags'] || '').split(',').map(t => t.trim()).filter(t => t);
+
+            if (currentTags.includes(tagToAdd)) {
+                return;
+            }
+
+            currentTags.push(tagToAdd);
+            ad['Interface Tags'] = currentTags.join(', ');
+            allUniqueTags.add(tagToAdd);
+            renderCurrentTags();
+        }
+
+        async function saveTagsToSheet() {
+            const btn = document.querySelector('.save-tags-btn');
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+
+            try {
+                const ad = allAds[currentAdIndexForTagEdit];
+
+                console.log('Saving tags:', {
+                    adLink: ad['Ad Link'],
+                    tags: ad['Interface Tags']
+                });
+
+                const response = await fetch(CONFIG.updateTagsWebhook, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        adLink: ad['Ad Link'],
+                        tags: ad['Interface Tags']
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                populateSidebarTags();
+                applyFilters();
+
+                alert('✅ Tags saved successfully!');
+                closeTagModal();
+            } catch (error) {
+                console.error('Error saving tags:', error);
+                alert('❌ Failed to save tags: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Save Tags';
+            }
+        }
+
+        // Event Listeners
+        document.getElementById('globalSearch').addEventListener('input', (e) => {
+            activeFilters.search = e.target.value.toLowerCase();
+            applyFilters();
+        });
+
+        document.getElementById('industryFilter').addEventListener('change', (e) => {
+            activeFilters.industry = e.target.value;
+            applyFilters();
+        });
+
+        document.getElementById('funnelStageFilter').addEventListener('change', (e) => {
+            activeFilters.funnelStage = e.target.value;
+            applyFilters();
+        });
+
+        document.getElementById('offerTypeFilter').addEventListener('change', (e) => {
+            activeFilters.offerType = e.target.value;
+            applyFilters();
+        });
+
+        document.getElementById('sortBy').addEventListener('change', () => {
+            sortAds();
+            renderAds();
+        });
+
+        document.getElementById('tagInput').addEventListener('input', handleTagInputChange);
+        document.getElementById('tagInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const value = e.target.value.trim();
+                if (value) {
+                    addTag(value);
+                    e.target.value = '';
+                    document.getElementById('tagSuggestions').classList.remove('active');
+                }
+            }
+        });
+
+        document.getElementById('tagSearchInput').addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const pills = document.querySelectorAll('.sidebar-tag-pill');
+            pills.forEach(pill => {
+                const tagName = pill.textContent.toLowerCase();
+                pill.style.display = tagName.includes(searchTerm) ? 'inline-flex' : 'none';
+            });
+        });
+
+        document.getElementById('tagModal').addEventListener('click', (e) => {
+            if (e.target.id === 'tagModal') {
+                closeTagModal();
+            }
+        });
+
+        document.getElementById('infoModal').addEventListener('click', (e) => {
+            if (e.target.id === 'infoModal') {
+                closeInfoModal();
+            }
+        });
+
+        // Initialize
+        fetchAds();
+    </script>
+</body>
+</html>
