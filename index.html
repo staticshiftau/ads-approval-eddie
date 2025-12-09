@@ -37,25 +37,27 @@
 
         // ===== CONFIGURATION - UPDATE FOR EACH CLIENT =====
         const CONFIG = {
-            SHEET_ID: '1OQxNLz4IuwsVOSVBTOyvZK-a_9mog81Cns5XGZYBFXU',
+            SHEET_ID: '1TNBlbHauHOkcMNi16NzJt94Zy_qet7QhOVKIuiOmD0k',
             API_KEY: 'AIzaSyABznAS0fH0tYNh6wlS_iEL08b6znNJCL8',
             CLIENT_INFO_SHEET: 'Client Info',
             ADS_SHEET: 'Ads Masterlist',
-            APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbynP-7NA6OgMENqgH8HE4BR_VuP1lxf7syPOB_avUX570Sm2Ci2a4LELJUN9ukA9-QT/exec',
-            
-            ADS_COLUMNS: {
-                STATUS: 0,              // Column A
-                AD_NAME: 1,             // Column B
-                CAMPAIGN_ANGLE: 2,      // Column C
-                HEADLINE: 3,            // Column D
-                AD_COPY: 4,             // Column E
-                CREATIVE_ASSETS: 6,     // Column G (Direct URL - auto-converted!)
-                RECOMMENDED_CTA: 7,     // Column H (CTA dropdown)
-                IMAGE_TEXT: 8,          // Column I
-                CLIENT_NOTE: 9,         // Column J
-                UPDATED_DATE: 10        // Column K
+            APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwsipHBdm_x2tUIuEfb5doByUnNZKA0n6qqno7Uqja6km0Ktfq3EYqBsTVQ_iP8EazdPA/exec',
+
+            // Column names for dynamic mapping
+            ADS_COLUMN_NAMES: {
+                STATUS: 'Status',
+                INTERNAL_STATUS: 'Internal Status',
+                AD_NAME: 'Ad Name',
+                CAMPAIGN_ANGLE: 'Campaign Angle',
+                HEADLINE: 'Headline',
+                AD_COPY: 'Ad Copy (Body)',
+                CREATIVE_ASSETS: 'Creative Asset',
+                DIRECT_URL: 'Direct URL (hidden)',
+                IMAGE_TEXT: 'Image Text',
+                CLIENT_NOTE: 'Client Note',
+                UPDATED_DATE: 'Updated Date'
             },
-            
+
             CLIENT_COLUMNS: {
                 CLIENT_ID: 0,
                 BUSINESS_NAME: 1,
@@ -63,6 +65,36 @@
                 DESTINATION_URL: 3,
                 PROFILE_IMAGE: 4
             }
+        };
+
+        // Helper function to build column map from header row
+        const buildColumnMap = (headers) => {
+            const map = {};
+            headers.forEach((header, index) => {
+                map[header] = index;
+            });
+            return map;
+        };
+
+        // Helper function to parse ad from row using column map
+        const parseAdFromRow = (row, rowIndex, clientInfo, colMap) => {
+            const imageUrl = row[colMap[CONFIG.ADS_COLUMN_NAMES.DIRECT_URL]] || '';
+
+            return {
+                rowIndex: rowIndex,
+                businessName: clientInfo.businessName,
+                websiteUrl: clientInfo.websiteUrl,
+                destinationUrl: clientInfo.destinationUrl,
+                profileImage: clientInfo.profileImage,
+                status: row[colMap[CONFIG.ADS_COLUMN_NAMES.STATUS]] || '',
+                adName: row[colMap[CONFIG.ADS_COLUMN_NAMES.AD_NAME]] || '',
+                campaignAngle: row[colMap[CONFIG.ADS_COLUMN_NAMES.CAMPAIGN_ANGLE]] || '',
+                headline: row[colMap[CONFIG.ADS_COLUMN_NAMES.HEADLINE]] || '',
+                adCopy: row[colMap[CONFIG.ADS_COLUMN_NAMES.AD_COPY]] || '',
+                creativeAsset: imageUrl,  // Only use Direct URL
+                imageText: row[colMap[CONFIG.ADS_COLUMN_NAMES.IMAGE_TEXT]] || '',
+                notes: row[colMap[CONFIG.ADS_COLUMN_NAMES.CLIENT_NOTE]] || ''
+            };
         };
 
         const FacebookAdCard = ({ ad, showActions, editNotes, handleNotesChange, updating, updateAdStatus, revertAdStatus, imageErrors, handleImageError }) => {
@@ -531,7 +563,8 @@
                         if (cached) {
                             try {
                                 const { ads: cachedAds, clientInfo: cachedClient, timestamp } = JSON.parse(cached);
-                                if (Date.now() - timestamp < 120000) {
+                                // Cache for 30 seconds (reduced from 2 minutes for faster updates)
+                                if (Date.now() - timestamp < 30000) {
                                     setAds(cachedAds);
                                     setClientInfo(cachedClient);
                                     setLoading(false);
@@ -576,33 +609,22 @@
 
                     setClientInfo(extractedClientInfo);
 
-                    if (adsData.values && adsData.values.length > 0) {
-                        const rows = adsData.values.slice(1);
+                    if (adsData.values && adsData.values.length > 1) {
+                        const headers = adsData.values[0];  // First row = headers
+                        const colMap = buildColumnMap(headers);
+                        const rows = adsData.values.slice(1);  // Data rows
 
-                        // Get all pending ads
-                        const pendingAds = rows.map((row, index) => ({
-                            rowIndex: index + 2,
-                            businessName: extractedClientInfo.businessName,
-                            websiteUrl: extractedClientInfo.websiteUrl,
-                            destinationUrl: extractedClientInfo.destinationUrl,
-                            profileImage: extractedClientInfo.profileImage,
-                            status: row[CONFIG.ADS_COLUMNS.STATUS] || '',
-                            adName: row[CONFIG.ADS_COLUMNS.AD_NAME] || '',
-                            campaignAngle: row[CONFIG.ADS_COLUMNS.CAMPAIGN_ANGLE] || '',
-                            headline: row[CONFIG.ADS_COLUMNS.HEADLINE] || '',
-                            adCopy: row[CONFIG.ADS_COLUMNS.AD_COPY] || '',
-                            creativeAsset: row[CONFIG.ADS_COLUMNS.CREATIVE_ASSETS] || '',
-                            recommendedCTA: row[CONFIG.ADS_COLUMNS.RECOMMENDED_CTA] || 'Learn More',
-                            imageText: row[CONFIG.ADS_COLUMNS.IMAGE_TEXT] || '',
-                            notes: row[CONFIG.ADS_COLUMNS.CLIENT_NOTE] || ''
-                        })).filter(ad => 
-                            ad.status.toLowerCase() === 'for review' || 
+                        // Get all pending ads using dynamic column mapping
+                        const pendingAds = rows.map((row, index) =>
+                            parseAdFromRow(row, index + 2, extractedClientInfo, colMap)
+                        ).filter(ad =>
+                            ad.status.toLowerCase() === 'for review' ||
                             ad.status === '' ||
                             ad.status.toLowerCase() === 'pending'
                         );
 
                         // Sync actioned ads with sheet status
-                        syncActionedAdsWithSheet(rows, extractedClientInfo);
+                        syncActionedAdsWithSheet(rows, extractedClientInfo, colMap);
 
                         setAds(pendingAds);
                         
@@ -623,7 +645,7 @@
                 }
             };
 
-            const syncActionedAdsWithSheet = (allRows, clientInfo) => {
+            const syncActionedAdsWithSheet = (allRows, clientInfo, colMap) => {
                 try {
                     const stored = localStorage.getItem('actionedAds');
                     const existingActionedAds = stored ? JSON.parse(stored) : { approved: [], needsEdit: [], rejected: [] };
@@ -640,30 +662,15 @@
 
                     allRows.forEach((row, index) => {
                         const rowIndex = index + 2;
-                        const status = (row[CONFIG.ADS_COLUMNS.STATUS] || '').toLowerCase();
+                        const status = (row[colMap[CONFIG.ADS_COLUMN_NAMES.STATUS]] || '').toLowerCase();
 
                         // Skip pending/for review ads
                         if (status === 'for review' || status === 'pending' || status === '') {
                             return;
                         }
 
-                        // Create ad object
-                        const ad = {
-                            rowIndex: rowIndex,
-                            businessName: clientInfo.businessName,
-                            websiteUrl: clientInfo.websiteUrl,
-                            destinationUrl: clientInfo.destinationUrl,
-                            profileImage: clientInfo.profileImage,
-                            status: row[CONFIG.ADS_COLUMNS.STATUS] || '',
-                            adName: row[CONFIG.ADS_COLUMNS.AD_NAME] || '',
-                            campaignAngle: row[CONFIG.ADS_COLUMNS.CAMPAIGN_ANGLE] || '',
-                            headline: row[CONFIG.ADS_COLUMNS.HEADLINE] || '',
-                            adCopy: row[CONFIG.ADS_COLUMNS.AD_COPY] || '',
-                            creativeAsset: row[CONFIG.ADS_COLUMNS.CREATIVE_ASSETS] || '',
-                            recommendedCTA: row[CONFIG.ADS_COLUMNS.RECOMMENDED_CTA] || 'Learn More',
-                            imageText: row[CONFIG.ADS_COLUMNS.IMAGE_TEXT] || '',
-                            notes: row[CONFIG.ADS_COLUMNS.CLIENT_NOTE] || ''
-                        };
+                        // Create ad object using parseAdFromRow
+                        const ad = parseAdFromRow(row, rowIndex, clientInfo, colMap);
 
                         // Check if we have existing metadata for this ad
                         let existingAd = null;
@@ -682,7 +689,7 @@
                             ad.actionDate = existingAd.actionDate;
                         } else {
                             // New actioned ad from sheet (manually changed)
-                            ad.actionStatus = row[CONFIG.ADS_COLUMNS.STATUS] || '';
+                            ad.actionStatus = ad.status;
                             ad.actionNotes = '';
                             ad.actionDate = new Date().toISOString();
                         }
