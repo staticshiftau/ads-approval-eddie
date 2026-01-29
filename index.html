@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Facebook Ad Approval Portal</title>
+    <title>Creative Assets Approval Portal</title>
     <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -27,6 +27,34 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .lightbox {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            cursor: pointer;
+        }
+        .lightbox img, .lightbox video {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+        }
+        .lightbox-close {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            color: white;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 10001;
+        }
     </style>
 </head>
 <body>
@@ -35,529 +63,489 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // ===== CONFIGURATION - UPDATE FOR EACH CLIENT =====
         const CONFIG = {
             SHEET_ID: '1OQxNLz4IuwsVOSVBTOyvZK-a_9mog81Cns5XGZYBFXU',
             API_KEY: 'AIzaSyABznAS0fH0tYNh6wlS_iEL08b6znNJCL8',
+            CREATIVE_ASSETS_SHEET: 'Ads Masterlist',
             CLIENT_INFO_SHEET: 'Client Info',
-            ADS_SHEET: 'Ads Masterlist',
-            APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbynP-7NA6OgMENqgH8HE4BR_VuP1lxf7syPOB_avUX570Sm2Ci2a4LELJUN9ukA9-QT/exec',
-            
-            ADS_COLUMNS: {
-                STATUS: 0,              // Column A
-                AD_NAME: 1,             // Column B
-                CAMPAIGN_ANGLE: 2,      // Column C
-                HEADLINE: 3,            // Column D
-                AD_COPY: 4,             // Column E
-                CREATIVE_ASSETS: 6,     // Column G (Direct URL - auto-converted!)
-                RECOMMENDED_CTA: 7,     // Column H (CTA dropdown)
-                IMAGE_TEXT: 8,          // Column I
-                CLIENT_NOTE: 9,         // Column J
-                UPDATED_DATE: 10        // Column K
+            APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzyOjeUnw43AIEvjIy8XGaIGtijkNvVLRyIUdGKjIwisj8dHV0ycoOlMHCIwxxJ-jU/exec',
+
+            COPIES_COLUMNS: {
+                STATUS: 0,
+                COPY_ID: 1,
+                CAMPAIGN_NAME: 2,
+                HEADLINE: 3,
+                AD_COPY_TEXT: 4,
+                NOTES: 9,
+                LAST_UPDATED: 10
             },
-            
+
+            // Updated column mapping for Creative Assets sheet
+            // A=Approval Status, B=Ad Status, C=Ad Name, D=Description, E=Campaign Angle,
+            // F=Headline, G=Ad Copy (Body), H=GDrive Link (skip), I=Direct URL (image),
+            // J=Image Text (skip), K=Client Note, L=Updated Date
+            ASSETS_COLUMNS: {
+                APPROVAL_STATUS: 0,    // Column A - for client approval (Pending/Approved/Needs Edit/Rejected)
+                AD_STATUS: 1,          // Column B - internal Meta status (Draft/Live/Published/etc)
+                AD_NAME: 2,            // Column C
+                DESCRIPTION: 3,        // Column D
+                CAMPAIGN_ANGLE: 4,     // Column E
+                HEADLINE: 5,           // Column F
+                AD_COPY_BODY: 6,       // Column G
+                GDRIVE_LINK: 7,        // Column H - not used for display
+                DIRECT_URL: 8,         // Column I - use this for displaying images
+                IMAGE_TEXT: 9,         // Column J - not shown
+                CLIENT_NOTE: 10,       // Column K
+                UPDATED_DATE: 11       // Column L
+            },
+
             CLIENT_COLUMNS: {
                 CLIENT_ID: 0,
                 BUSINESS_NAME: 1,
                 WEBSITE_URL: 2,
                 DESTINATION_URL: 3,
                 PROFILE_IMAGE: 4
+            },
+
+            // Ad Status options (internal tracking - read-only in interface)
+            AD_STATUSES: {
+                DRAFT: { label: 'Draft', color: '#6b7280', icon: '📝' },
+                IN_REVIEW: { label: 'In Review', color: '#3b82f6', icon: '🔍' },
+                LIVE: { label: 'Live', color: '#10b981', icon: '🟢' },
+                PUBLISHED: { label: 'Published', color: '#8b5cf6', icon: '📤' },
+                REJECTED: { label: 'Rejected', color: '#ef4444', icon: '❌' },
+                COMPLETED: { label: 'Completed', color: '#374151', icon: '✅' },
+                SCHEDULED: { label: 'Scheduled', color: '#14b8a6', icon: '📅' }
             }
         };
 
-        const FacebookAdCard = ({ ad, showActions, editNotes, handleNotesChange, updating, updateAdStatus, revertAdStatus, imageErrors, handleImageError }) => {
-            const [isExpanded, setIsExpanded] = useState(false);
-            const bodyLength = ad.adCopy?.length || 0;
-            const shouldCollapse = bodyLength > 125;
+        const Lightbox = ({ mediaUrl, mediaType, onClose }) => {
+            const isVideo = mediaType?.toLowerCase() === 'video';
 
             return (
-                <div style={{
-                    backgroundColor: 'white',
-                    borderRadius: '8px',
-                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.2)',
-                    overflow: 'hidden',
-                    width: '500px',
-                    minWidth: '500px',
-                    maxWidth: '500px',
-                    margin: '0 auto 24px auto'
-                }}>
-                    {/* Header: Profile + Sponsored */}
+                <div className="lightbox" onClick={onClose}>
+                    <span className="lightbox-close" onClick={onClose}>&times;</span>
+                    {isVideo ? (
+                        <video src={mediaUrl} controls autoPlay style={{ maxWidth: '90%', maxHeight: '90%' }} />
+                    ) : (
+                        <img src={mediaUrl} alt="Full size" />
+                    )}
+                </div>
+            );
+        };
+
+        const CreativeAssetCard = ({ asset, clientInfo, updating, onStatusUpdate, editNotes, onNotesChange }) => {
+            const [mediaError, setMediaError] = useState(false);
+            const [showLightbox, setShowLightbox] = useState(false);
+            const [isExpanded, setIsExpanded] = useState(false);
+
+            const isVideo = asset.assetUrl?.toLowerCase().includes('video') ||
+                           asset.assetUrl?.toLowerCase().endsWith('.mp4') ||
+                           asset.assetUrl?.toLowerCase().endsWith('.mov');
+
+            const getStatusColor = (status) => {
+                switch(status?.toLowerCase()) {
+                    case 'approved': return '#10b981';
+                    case 'needs edit': return '#f59e0b';
+                    case 'rejected': return '#ef4444';
+                    default: return '#e4e6eb';
+                }
+            };
+
+            const getAdStatusInfo = (status) => {
+                const normalized = status?.toLowerCase().replace(/\s+/g, '_');
+                switch(normalized) {
+                    case 'in_review': return CONFIG.AD_STATUSES.IN_REVIEW;
+                    case 'live': return CONFIG.AD_STATUSES.LIVE;
+                    case 'published': return CONFIG.AD_STATUSES.PUBLISHED;
+                    case 'rejected': return CONFIG.AD_STATUSES.REJECTED;
+                    case 'completed': return CONFIG.AD_STATUSES.COMPLETED;
+                    case 'scheduled': return CONFIG.AD_STATUSES.SCHEDULED;
+                    default: return CONFIG.AD_STATUSES.DRAFT;
+                }
+            };
+
+            const adStatusInfo = getAdStatusInfo(asset.adStatus);
+            const adCopyText = asset.adCopyBody || '';
+            const shouldTruncate = adCopyText.length > 150;
+            const displayUrl = clientInfo?.websiteUrl?.replace(/^https?:\/\//, '').replace(/\/$/, '') || 'example.com';
+
+            return (
+                <>
                     <div style={{
-                        padding: '12px 16px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
+                        backgroundColor: 'white',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
+                        border: `2px solid ${getStatusColor(asset.approvalStatus)}`
                     }}>
+                        {/* Facebook-style Header with Profile */}
                         <div style={{
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: '50%',
-                            backgroundColor: '#e4e6eb',
+                            padding: '12px',
                             display: 'flex',
                             alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '16px',
-                            fontWeight: '600',
-                            color: '#65676b',
-                            overflow: 'hidden',
-                            flexShrink: 0
+                            gap: '10px',
+                            borderBottom: '1px solid #e4e6eb'
                         }}>
-                            {ad.profileImage ? (
-                                <img 
-                                    src={ad.profileImage} 
-                                    alt={ad.businessName}
-                                    style={{
+                            {/* Profile Image */}
+                            <div style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '50%',
+                                backgroundColor: '#e4e6eb',
+                                overflow: 'hidden',
+                                flexShrink: 0
+                            }}>
+                                {clientInfo?.profileImage ? (
+                                    <img
+                                        src={clientInfo.profileImage}
+                                        alt={clientInfo.businessName}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                    />
+                                ) : (
+                                    <div style={{
                                         width: '100%',
                                         height: '100%',
-                                        objectFit: 'cover'
-                                    }}
-                                    onError={(e) => { e.target.style.display = 'none'; }}
-                                />
-                            ) : (
-                                (ad.businessName || 'B').charAt(0).toUpperCase()
-                            )}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ 
-                                fontSize: '15px', 
-                                fontWeight: '600',
-                                color: '#050505',
-                                lineHeight: '20px'
-                            }}>
-                                {ad.businessName || 'Business Name'}
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        backgroundColor: '#1877f2',
+                                        color: 'white',
+                                        fontSize: '18px',
+                                        fontWeight: '600'
+                                    }}>
+                                        {(clientInfo?.businessName || 'C').charAt(0).toUpperCase()}
+                                    </div>
+                                )}
                             </div>
-                            <div style={{ 
-                                fontSize: '13px', 
-                                color: '#65676b',
-                                lineHeight: '16px'
-                            }}>
-                                Sponsored
-                            </div>
-                        </div>
-                        <div style={{
-                            fontSize: '20px',
-                            color: '#65676b',
-                            padding: '8px',
-                            lineHeight: '1'
-                        }}>
-                            •••
-                        </div>
-                    </div>
 
-                    {/* Body Copy ONLY (No headline here!) */}
-                    {ad.adCopy && (
-                        <div style={{
-                            padding: '0 16px 12px 16px',
-                            fontSize: '15px',
-                            lineHeight: '20px',
-                            color: '#050505',
-                            whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-word'
-                        }}>
-                            {shouldCollapse && !isExpanded ? (
-                                <>
-                                    {ad.adCopy.substring(0, 125)}...{' '}
-                                    <span 
-                                        onClick={() => setIsExpanded(true)}
-                                        style={{
-                                            color: '#65676b',
-                                            fontWeight: '600',
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        See more
-                                    </span>
-                                </>
-                            ) : (
-                                <>
-                                    {ad.adCopy}
-                                    {shouldCollapse && isExpanded && (
+                            {/* Name and Sponsored */}
+                            <div style={{ flex: 1 }}>
+                                <div style={{
+                                    fontSize: '14px',
+                                    fontWeight: '600',
+                                    color: '#050505'
+                                }}>
+                                    {clientInfo?.businessName || 'Client Name'}
+                                </div>
+                                <div style={{
+                                    fontSize: '12px',
+                                    color: '#65676b'
+                                }}>
+                                    Sponsored
+                                </div>
+                            </div>
+
+                            {/* Ad Status Badge - Read Only */}
+                            <div style={{
+                                backgroundColor: adStatusInfo.color,
+                                color: 'white',
+                                padding: '4px 10px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: '600',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.3px'
+                            }}>
+                                {adStatusInfo.icon} {adStatusInfo.label}
+                            </div>
+                        </div>
+
+                        {/* Ad Copy Text */}
+                        {adCopyText && (
+                            <div style={{ padding: '12px', paddingBottom: '8px' }}>
+                                <div style={{
+                                    fontSize: '14px',
+                                    color: '#050505',
+                                    lineHeight: '1.5',
+                                    whiteSpace: 'pre-wrap'
+                                }}>
+                                    {shouldTruncate && !isExpanded ? (
                                         <>
-                                            {' '}
-                                            <span 
-                                                onClick={() => setIsExpanded(false)}
+                                            {adCopyText.substring(0, 280)}...{' '}
+                                            <span
+                                                onClick={() => setIsExpanded(true)}
                                                 style={{
                                                     color: '#65676b',
                                                     fontWeight: '600',
                                                     cursor: 'pointer'
                                                 }}
                                             >
-                                                See less
+                                                See more
                                             </span>
                                         </>
+                                    ) : (
+                                        <>
+                                            {adCopyText}
+                                            {shouldTruncate && isExpanded && (
+                                                <>
+                                                    {' '}
+                                                    <span
+                                                        onClick={() => setIsExpanded(false)}
+                                                        style={{
+                                                            color: '#65676b',
+                                                            fontWeight: '600',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        See less
+                                                    </span>
+                                                </>
+                                            )}
+                                        </>
                                     )}
-                                </>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Image - Full Width */}
-                    <div style={{ width: '100%', backgroundColor: '#f0f2f5' }}>
-                        {ad.creativeAsset && !imageErrors[ad.rowIndex] ? (
-                            <img
-                                src={ad.creativeAsset}
-                                alt="Ad creative"
-                                loading="lazy"
-                                style={{
-                                    width: '100%',
-                                    display: 'block',
-                                    objectFit: 'cover'
-                                }}
-                                onError={() => handleImageError(ad.rowIndex)}
-                            />
-                        ) : ad.creativeAsset && imageErrors[ad.rowIndex] ? (
-                            <div style={{ padding: '60px 20px', textAlign: 'center', color: '#ef4444' }}>
-                                <div style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
-                                    Failed to load image
                                 </div>
-                                <a 
-                                    href={ad.creativeAsset} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    style={{ fontSize: '12px', color: '#1877f2' }}
-                                >
-                                    Open link directly
-                                </a>
-                            </div>
-                        ) : (
-                            <div style={{ padding: '60px 20px', textAlign: 'center', color: '#65676b' }}>
-                                <div style={{ fontSize: '48px', marginBottom: '8px' }}>📷</div>
-                                <div style={{ fontSize: '14px' }}>No image</div>
                             </div>
                         )}
-                    </div>
 
-                    {/* Link Preview Box - Headline + CTA on same line */}
-                    <div style={{
-                        backgroundColor: '#f0f2f5',
-                        padding: '12px',
-                        borderTop: '1px solid #e4e6eb'
-                    }}>
-                        {ad.websiteUrl && (
-                            <div style={{
-                                fontSize: '12px',
-                                color: '#65676b',
-                                textTransform: 'uppercase',
-                                marginBottom: '4px',
-                                lineHeight: '16px',
-                                letterSpacing: '0.3px'
-                            }}>
-                                {ad.websiteUrl.replace(/^https?:\/\/(www\.)?/, '')}
-                            </div>
-                        )}
-                        
-                        {ad.headline && (
-                            <div style={{
+                        {/* Creative Image/Video */}
+                        <div
+                            style={{
+                                width: '100%',
+                                aspectRatio: '1 / 1',
+                                backgroundColor: '#f0f2f5',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '12px',
-                                justifyContent: 'space-between'
-                            }}>
-                                <div style={{
-                                    fontSize: '16px',
-                                    fontWeight: '600',
-                                    color: '#050505',
-                                    lineHeight: '20px',
-                                    flex: 1
-                                }}>
-                                    {ad.headline}
+                                justifyContent: 'center',
+                                cursor: asset.assetUrl && !mediaError ? 'pointer' : 'default',
+                                position: 'relative'
+                            }}
+                            onClick={() => {
+                                if (asset.assetUrl && !mediaError) {
+                                    setShowLightbox(true);
+                                }
+                            }}
+                        >
+                            {asset.assetUrl && !mediaError ? (
+                                isVideo ? (
+                                    <video
+                                        src={asset.assetUrl}
+                                        style={{
+                                            width: '100%',
+                                            height: '100%',
+                                            objectFit: 'cover'
+                                        }}
+                                        onError={() => setMediaError(true)}
+                                    />
+                                ) : (
+                                    <img
+                                        src={asset.assetUrl}
+                                        alt={asset.adName}
+                                        style={{
+                                            width: '100%',
+                                            height: '100%',
+                                            objectFit: 'cover'
+                                        }}
+                                        onError={() => setMediaError(true)}
+                                    />
+                                )
+                            ) : asset.assetUrl && mediaError ? (
+                                <div style={{ textAlign: 'center', padding: '20px', color: '#65676b' }}>
+                                    <div style={{ fontSize: '48px', marginBottom: '8px' }}>🖼️</div>
+                                    <div style={{ fontSize: '14px', marginBottom: '8px' }}>
+                                        Failed to load media
+                                    </div>
+                                    <a
+                                        href={asset.assetUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ fontSize: '12px', color: '#1877f2', textDecoration: 'underline' }}
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        Open link directly
+                                    </a>
                                 </div>
-                                <button style={{
-                                    padding: '10px 20px',
-                                    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                                    color: '#050505',
-                                    border: 'none',
-                                    borderRadius: '4px',
-                                    fontSize: '15px',
-                                    fontWeight: '600',
-                                    cursor: 'default',
-                                    whiteSpace: 'nowrap',
-                                    flexShrink: 0
-                                }}>
-                                    Learn more
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Like/Comment/Share Bar */}
-                    <div style={{
-                        padding: '4px 16px',
-                        display: 'flex',
-                        borderTop: '1px solid #e4e6eb',
-                        backgroundColor: 'white'
-                    }}>
-                        {['👍 Like', '💬 Comment', '↗️ Share'].map((action, idx) => (
-                            <button key={idx} style={{
-                                flex: 1,
-                                padding: '8px',
-                                backgroundColor: 'transparent',
-                                border: 'none',
-                                color: '#65676b',
-                                fontSize: '15px',
-                                fontWeight: '600',
-                                cursor: 'default',
-                                textAlign: 'center'
-                            }}>
-                                {action}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Admin Actions - FOR PENDING ADS */}
-                    {showActions && (
-                        <div style={{
-                            padding: '16px',
-                            backgroundColor: '#f8f9fa',
-                            borderTop: '3px solid #1877f2'
-                        }}>
-                            {ad.campaignAngle && (
-                                <div style={{
-                                    fontSize: '11px',
-                                    fontWeight: '600',
-                                    color: '#65676b',
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.5px',
-                                    marginBottom: '12px'
-                                }}>
-                                    📊 Campaign: {ad.campaignAngle}
+                            ) : (
+                                <div style={{ textAlign: 'center', color: '#65676b' }}>
+                                    <div style={{ fontSize: '48px', marginBottom: '8px' }}>
+                                        {isVideo ? '🎥' : '📷'}
+                                    </div>
+                                    <div style={{ fontSize: '14px' }}>No media</div>
                                 </div>
                             )}
-                            
+                        </div>
+
+                        {/* URL Preview Bar */}
+                        <div style={{
+                            padding: '12px',
+                            backgroundColor: '#f0f2f5',
+                            borderTop: '1px solid #e4e6eb',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '12px'
+                        }}>
+                            <div style={{ flex: 1 }}>
+                                <div style={{
+                                    fontSize: '12px',
+                                    color: '#65676b',
+                                    textTransform: 'uppercase',
+                                    marginBottom: '4px'
+                                }}>
+                                    {displayUrl}
+                                </div>
+                                <div style={{
+                                    fontSize: '15px',
+                                    fontWeight: '600',
+                                    color: '#050505',
+                                    lineHeight: '1.3'
+                                }}>
+                                    {asset.headline || asset.adName || 'Ad Headline'}
+                                </div>
+                            </div>
+                            <button style={{
+                                padding: '8px 16px',
+                                backgroundColor: '#e4e6eb',
+                                color: '#050505',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                cursor: 'default',
+                                whiteSpace: 'nowrap',
+                                flexShrink: 0
+                            }}>
+                                Learn more
+                            </button>
+                        </div>
+
+                        {/* Engagement Buttons Row (Facebook style - decorative) */}
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-around',
+                            padding: '8px 12px',
+                            borderTop: '1px solid #e4e6eb',
+                            borderBottom: '1px solid #e4e6eb'
+                        }}>
+                            {['👍 Like', '💬 Comment', '↗️ Share'].map((action, idx) => (
+                                <div
+                                    key={idx}
+                                    style={{
+                                        flex: 1,
+                                        textAlign: 'center',
+                                        padding: '8px',
+                                        fontSize: '13px',
+                                        color: '#65676b',
+                                        fontWeight: '600'
+                                    }}
+                                >
+                                    {action}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Feedback Notes Section */}
+                        <div style={{ padding: '12px' }}>
+                            <div style={{
+                                fontSize: '12px',
+                                fontWeight: '600',
+                                color: '#65676b',
+                                marginBottom: '8px',
+                                textTransform: 'uppercase'
+                            }}>
+                                Feedback Notes
+                            </div>
                             <textarea
-                                placeholder="Add notes or feedback (optional)..."
-                                value={editNotes[ad.rowIndex] || ''}
-                                onChange={(e) => handleNotesChange(ad.rowIndex, e.target.value)}
-                                disabled={updating[ad.rowIndex]}
+                                placeholder="Add feedback notes (optional)..."
+                                value={editNotes[asset.rowIndex] || asset.clientNote || ''}
+                                onChange={(e) => onNotesChange(asset.rowIndex, e.target.value)}
+                                disabled={updating[asset.rowIndex]}
                                 style={{
                                     width: '100%',
-                                    minHeight: '80px',
-                                    padding: '12px',
+                                    minHeight: '70px',
+                                    padding: '10px',
                                     borderRadius: '8px',
                                     border: '1px solid #e4e6eb',
                                     fontSize: '14px',
                                     fontFamily: 'inherit',
                                     resize: 'vertical',
-                                    marginBottom: '12px',
-                                    opacity: updating[ad.rowIndex] ? 0.5 : 1
+                                    backgroundColor: '#f0f2f5',
+                                    opacity: updating[asset.rowIndex] ? 0.5 : 1
                                 }}
                             />
-                            
-                            <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: '1fr 1fr 1fr',
-                                gap: '8px'
-                            }}>
-                                {[
-                                    { label: '✓ Approve', status: 'Approved', color: '#10b981' },
-                                    { label: '✏️ Edit', status: 'Needs Edit', color: '#f59e0b' },
-                                    { label: '✗ Reject', status: 'Rejected', color: '#ef4444' }
-                                ].map((btn, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => updateAdStatus(ad, btn.status)}
-                                        disabled={updating[ad.rowIndex]}
-                                        style={{
-                                            padding: '11px 16px',
-                                            backgroundColor: updating[ad.rowIndex] ? '#ccc' : btn.color,
-                                            color: 'white',
-                                            border: 'none',
-                                            borderRadius: '6px',
-                                            fontSize: '14px',
-                                            fontWeight: '600',
-                                            cursor: updating[ad.rowIndex] ? 'not-allowed' : 'pointer',
-                                            transition: 'opacity 0.2s'
-                                        }}
-                                        onMouseOver={(e) => { if (!updating[ad.rowIndex]) e.target.style.opacity = '0.9'; }}
-                                        onMouseOut={(e) => { e.target.style.opacity = '1'; }}
-                                    >
-                                        {updating[ad.rowIndex] ? '⏳' : btn.label}
-                                    </button>
-                                ))}
-                            </div>
                         </div>
-                    )}
 
-                    {/* REVERT BUTTON - FOR ACTIONED ADS */}
-                    {!showActions && revertAdStatus && (
+                        {/* Approval Buttons */}
                         <div style={{
-                            padding: '16px',
-                            backgroundColor: '#f8f9fa',
-                            borderTop: '2px solid #6b7280'
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 1fr 1fr',
+                            gap: '8px',
+                            padding: '0 12px 12px 12px'
                         }}>
-                            <button
-                                onClick={() => revertAdStatus(ad)}
-                                disabled={updating[ad.rowIndex]}
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 16px',
-                                    backgroundColor: updating[ad.rowIndex] ? '#ccc' : '#6b7280',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    fontSize: '14px',
-                                    fontWeight: '600',
-                                    cursor: updating[ad.rowIndex] ? 'not-allowed' : 'pointer',
-                                    transition: 'opacity 0.2s',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '8px'
-                                }}
-                                onMouseOver={(e) => { if (!updating[ad.rowIndex]) e.target.style.opacity = '0.9'; }}
-                                onMouseOut={(e) => { e.target.style.opacity = '1'; }}
-                            >
-                                {updating[ad.rowIndex] ? '⏳ Reverting...' : '↩️ Revert to Pending Review'}
-                            </button>
+                            {[
+                                { label: 'Approve', icon: '✓', status: 'Approved', color: '#10b981' },
+                                { label: 'Edit', icon: '✏️', status: 'Needs Edit', color: '#f59e0b' },
+                                { label: 'Reject', icon: '✗', status: 'Rejected', color: '#ef4444' }
+                            ].map((btn, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => onStatusUpdate(asset, btn.status)}
+                                    disabled={updating[asset.rowIndex]}
+                                    style={{
+                                        padding: '10px 8px',
+                                        backgroundColor: updating[asset.rowIndex] ? '#ccc' : btn.color,
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        fontSize: '13px',
+                                        fontWeight: '600',
+                                        cursor: updating[asset.rowIndex] ? 'not-allowed' : 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '4px',
+                                        transition: 'opacity 0.2s'
+                                    }}
+                                    onMouseOver={(e) => { if (!updating[asset.rowIndex]) e.target.style.opacity = '0.9'; }}
+                                    onMouseOut={(e) => { e.target.style.opacity = '1'; }}
+                                >
+                                    {updating[asset.rowIndex] ? '⏳' : `${btn.icon} ${btn.label}`}
+                                </button>
+                            ))}
                         </div>
-                    )}
+                    </div>
 
-                    {/* Feedback Display */}
-                    {!showActions && ad.actionNotes && (
-                        <div style={{
-                            padding: '12px 16px',
-                            backgroundColor: '#fffbeb',
-                            borderTop: '3px solid #fbbf24'
-                        }}>
-                            <div style={{ 
-                                fontSize: '11px', 
-                                fontWeight: '600', 
-                                color: '#92400e', 
-                                marginBottom: '6px',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.5px'
-                            }}>
-                                📝 Feedback:
-                            </div>
-                            <div style={{ 
-                                fontSize: '14px', 
-                                color: '#78350f', 
-                                whiteSpace: 'pre-wrap',
-                                lineHeight: '1.5'
-                            }}>
-                                {ad.actionNotes}
-                            </div>
-                            {ad.actionDate && (
-                                <div style={{
-                                    fontSize: '12px',
-                                    color: '#92400e',
-                                    marginTop: '8px',
-                                    opacity: 0.8
-                                }}>
-                                    {new Date(ad.actionDate).toLocaleDateString('en-AU', { 
-                                        day: 'numeric', 
-                                        month: 'short', 
-                                        year: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                    })}
-                                </div>
-                            )}
-                        </div>
+                    {showLightbox && (
+                        <Lightbox
+                            mediaUrl={asset.assetUrl}
+                            mediaType={isVideo ? 'video' : 'image'}
+                            onClose={() => setShowLightbox(false)}
+                        />
                     )}
-                </div>
+                </>
             );
         };
 
-        const AdApprovalPortal = () => {
-            const [ads, setAds] = useState([]);
+        const CreativeApprovalPortal = () => {
+            const [creativeAssets, setCreativeAssets] = useState([]);
             const [clientInfo, setClientInfo] = useState(null);
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState(null);
             const [editNotes, setEditNotes] = useState({});
             const [updating, setUpdating] = useState({});
-            const [imageErrors, setImageErrors] = useState({});
-            const [activeTab, setActiveTab] = useState('pending');
-            const [actionedAds, setActionedAds] = useState({
-                approved: [], needsEdit: [], rejected: []
-            });
+            const [activeFilter, setActiveFilter] = useState('all');
+            const [adStatusFilter, setAdStatusFilter] = useState('all');
 
             useEffect(() => {
-                fetchAds();
-                loadActionedAds();
+                fetchData();
             }, []);
 
-            const loadActionedAds = () => {
-                const stored = localStorage.getItem('actionedAds');
-                if (stored) {
-                    try {
-                        setActionedAds(JSON.parse(stored));
-                    } catch (e) {
-                        console.error('Error loading actioned ads:', e);
-                    }
-                }
-            };
-
-            const saveActionedAd = (ad, status, notes) => {
-                const actionedAd = {
-                    ...ad,
-                    actionStatus: status,
-                    actionNotes: notes,
-                    actionDate: new Date().toISOString()
-                };
-
-                setActionedAds(prev => {
-                    const updated = { ...prev };
-                    const key = status === 'Approved' ? 'approved' : 
-                                status === 'Needs Edit' ? 'needsEdit' : 'rejected';
-                    
-                    // Remove from other categories if exists
-                    ['approved', 'needsEdit', 'rejected'].forEach(cat => {
-                        updated[cat] = updated[cat].filter(a => a.rowIndex !== ad.rowIndex);
-                    });
-                    
-                    // Add to new category
-                    updated[key] = [actionedAd, ...updated[key]];
-                    localStorage.setItem('actionedAds', JSON.stringify(updated));
-                    return updated;
-                });
-            };
-
-            const removeActionedAd = (rowIndex) => {
-                setActionedAds(prev => {
-                    const updated = { ...prev };
-                    ['approved', 'needsEdit', 'rejected'].forEach(cat => {
-                        updated[cat] = updated[cat].filter(a => a.rowIndex !== rowIndex);
-                    });
-                    localStorage.setItem('actionedAds', JSON.stringify(updated));
-                    return updated;
-                });
-            };
-
-            const fetchAds = async (useCache = true) => {
+            const fetchData = async () => {
                 try {
-                    if (useCache) {
-                        const cached = localStorage.getItem('cachedAds');
-                        if (cached) {
-                            try {
-                                const { ads: cachedAds, clientInfo: cachedClient, timestamp } = JSON.parse(cached);
-                                if (Date.now() - timestamp < 120000) {
-                                    setAds(cachedAds);
-                                    setClientInfo(cachedClient);
-                                    setLoading(false);
-                                    // Still fetch in background to sync
-                                    fetchAds(false);
-                                    return;
-                                }
-                            } catch (e) {
-                                console.error('Cache error:', e);
-                            }
-                        }
-                    }
-
                     setLoading(true);
                     setError(null);
 
-                    const [adsResponse, clientResponse] = await Promise.all([
-                        fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values/${CONFIG.ADS_SHEET}?key=${CONFIG.API_KEY}`),
+                    const [assetsResponse, clientResponse] = await Promise.all([
+                        fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values/${CONFIG.CREATIVE_ASSETS_SHEET}?key=${CONFIG.API_KEY}`),
                         fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values/${CONFIG.CLIENT_INFO_SHEET}?key=${CONFIG.API_KEY}`)
                     ]);
 
-                    if (!adsResponse.ok || !clientResponse.ok) {
-                        throw new Error('Failed to fetch data');
+                    if (!assetsResponse.ok || !clientResponse.ok) {
+                        throw new Error('Failed to fetch data from Google Sheets');
                     }
 
-                    const adsData = await adsResponse.json();
+                    const assetsData = await assetsResponse.json();
                     const clientData = await clientResponse.json();
 
                     let extractedClientInfo = {
@@ -573,46 +561,23 @@
                             profileImage: clientRow[CONFIG.CLIENT_COLUMNS.PROFILE_IMAGE] || ''
                         };
                     }
-
                     setClientInfo(extractedClientInfo);
 
-                    if (adsData.values && adsData.values.length > 0) {
-                        const rows = adsData.values.slice(1);
-
-                        // Get all pending ads
-                        const pendingAds = rows.map((row, index) => ({
+                    if (assetsData.values && assetsData.values.length > 1) {
+                        const assets = assetsData.values.slice(1).map((row, index) => ({
                             rowIndex: index + 2,
-                            businessName: extractedClientInfo.businessName,
-                            websiteUrl: extractedClientInfo.websiteUrl,
-                            destinationUrl: extractedClientInfo.destinationUrl,
-                            profileImage: extractedClientInfo.profileImage,
-                            status: row[CONFIG.ADS_COLUMNS.STATUS] || '',
-                            adName: row[CONFIG.ADS_COLUMNS.AD_NAME] || '',
-                            campaignAngle: row[CONFIG.ADS_COLUMNS.CAMPAIGN_ANGLE] || '',
-                            headline: row[CONFIG.ADS_COLUMNS.HEADLINE] || '',
-                            adCopy: row[CONFIG.ADS_COLUMNS.AD_COPY] || '',
-                            creativeAsset: row[CONFIG.ADS_COLUMNS.CREATIVE_ASSETS] || '',
-                            recommendedCTA: row[CONFIG.ADS_COLUMNS.RECOMMENDED_CTA] || 'Learn More',
-                            imageText: row[CONFIG.ADS_COLUMNS.IMAGE_TEXT] || '',
-                            notes: row[CONFIG.ADS_COLUMNS.CLIENT_NOTE] || ''
-                        })).filter(ad => 
-                            ad.status.toLowerCase() === 'for review' || 
-                            ad.status === '' ||
-                            ad.status.toLowerCase() === 'pending'
-                        );
-
-                        // Sync actioned ads with sheet status
-                        syncActionedAdsWithSheet(rows, extractedClientInfo);
-
-                        setAds(pendingAds);
-                        
-                        localStorage.setItem('cachedAds', JSON.stringify({
-                            ads: pendingAds,
-                            clientInfo: extractedClientInfo,
-                            timestamp: Date.now()
+                            approvalStatus: row[CONFIG.ASSETS_COLUMNS.APPROVAL_STATUS] || 'Pending',
+                            adStatus: row[CONFIG.ASSETS_COLUMNS.AD_STATUS] || 'Draft',
+                            adName: row[CONFIG.ASSETS_COLUMNS.AD_NAME] || '',
+                            description: row[CONFIG.ASSETS_COLUMNS.DESCRIPTION] || '',
+                            campaignAngle: row[CONFIG.ASSETS_COLUMNS.CAMPAIGN_ANGLE] || '',
+                            headline: row[CONFIG.ASSETS_COLUMNS.HEADLINE] || '',
+                            adCopyBody: row[CONFIG.ASSETS_COLUMNS.AD_COPY_BODY] || '',
+                            assetUrl: row[CONFIG.ASSETS_COLUMNS.DIRECT_URL] || '',  // Use Direct URL (column I) for images
+                            clientNote: row[CONFIG.ASSETS_COLUMNS.CLIENT_NOTE] || ''
                         }));
-                    } else {
-                        setAds([]);
+
+                        setCreativeAssets(assets);
                     }
 
                     setLoading(false);
@@ -623,92 +588,11 @@
                 }
             };
 
-            const syncActionedAdsWithSheet = (allRows, clientInfo) => {
-                try {
-                    const stored = localStorage.getItem('actionedAds');
-                    const existingActionedAds = stored ? JSON.parse(stored) : { approved: [], needsEdit: [], rejected: [] };
-
-                    // Create maps of existing actioned ads by rowIndex for quick lookup
-                    const existingMaps = {
-                        approved: new Map(existingActionedAds.approved.map(ad => [ad.rowIndex, ad])),
-                        needsEdit: new Map(existingActionedAds.needsEdit.map(ad => [ad.rowIndex, ad])),
-                        rejected: new Map(existingActionedAds.rejected.map(ad => [ad.rowIndex, ad]))
-                    };
-
-                    // Build fresh lists from sheet data
-                    const newActionedAds = { approved: [], needsEdit: [], rejected: [] };
-
-                    allRows.forEach((row, index) => {
-                        const rowIndex = index + 2;
-                        const status = (row[CONFIG.ADS_COLUMNS.STATUS] || '').toLowerCase();
-
-                        // Skip pending/for review ads
-                        if (status === 'for review' || status === 'pending' || status === '') {
-                            return;
-                        }
-
-                        // Create ad object
-                        const ad = {
-                            rowIndex: rowIndex,
-                            businessName: clientInfo.businessName,
-                            websiteUrl: clientInfo.websiteUrl,
-                            destinationUrl: clientInfo.destinationUrl,
-                            profileImage: clientInfo.profileImage,
-                            status: row[CONFIG.ADS_COLUMNS.STATUS] || '',
-                            adName: row[CONFIG.ADS_COLUMNS.AD_NAME] || '',
-                            campaignAngle: row[CONFIG.ADS_COLUMNS.CAMPAIGN_ANGLE] || '',
-                            headline: row[CONFIG.ADS_COLUMNS.HEADLINE] || '',
-                            adCopy: row[CONFIG.ADS_COLUMNS.AD_COPY] || '',
-                            creativeAsset: row[CONFIG.ADS_COLUMNS.CREATIVE_ASSETS] || '',
-                            recommendedCTA: row[CONFIG.ADS_COLUMNS.RECOMMENDED_CTA] || 'Learn More',
-                            imageText: row[CONFIG.ADS_COLUMNS.IMAGE_TEXT] || '',
-                            notes: row[CONFIG.ADS_COLUMNS.CLIENT_NOTE] || ''
-                        };
-
-                        // Check if we have existing metadata for this ad
-                        let existingAd = null;
-                        if (status === 'approved') {
-                            existingAd = existingMaps.approved.get(rowIndex);
-                        } else if (status === 'needs edit') {
-                            existingAd = existingMaps.needsEdit.get(rowIndex);
-                        } else if (status === 'rejected') {
-                            existingAd = existingMaps.rejected.get(rowIndex);
-                        }
-
-                        // Preserve action metadata if it exists
-                        if (existingAd) {
-                            ad.actionStatus = existingAd.actionStatus;
-                            ad.actionNotes = existingAd.actionNotes;
-                            ad.actionDate = existingAd.actionDate;
-                        } else {
-                            // New actioned ad from sheet (manually changed)
-                            ad.actionStatus = row[CONFIG.ADS_COLUMNS.STATUS] || '';
-                            ad.actionNotes = '';
-                            ad.actionDate = new Date().toISOString();
-                        }
-
-                        // Add to appropriate category
-                        if (status === 'approved') {
-                            newActionedAds.approved.push(ad);
-                        } else if (status === 'needs edit') {
-                            newActionedAds.needsEdit.push(ad);
-                        } else if (status === 'rejected') {
-                            newActionedAds.rejected.push(ad);
-                        }
-                    });
-
-                    // Update localStorage and state
-                    localStorage.setItem('actionedAds', JSON.stringify(newActionedAds));
-                    setActionedAds(newActionedAds);
-
-                } catch (e) {
-                    console.error('Error syncing actioned ads:', e);
-                }
-            };
-
-            const updateAdStatus = async (ad, status) => {
-                const notes = editNotes[ad.rowIndex] || '';
-                setUpdating(prev => ({ ...prev, [ad.rowIndex]: true }));
+            const updateAssetStatus = async (asset, newStatus) => {
+                const notes = editNotes[asset.rowIndex] !== undefined
+                    ? editNotes[asset.rowIndex]
+                    : (asset.clientNote || '');
+                setUpdating(prev => ({ ...prev, [asset.rowIndex]: true }));
 
                 try {
                     await fetch(CONFIG.APPS_SCRIPT_URL, {
@@ -716,96 +600,53 @@
                         mode: 'no-cors',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            rowIndex: ad.rowIndex,
-                            status: status,
-                            notes: notes,
-                            timestamp: new Date().toISOString()
+                            action: 'updateApprovalStatus',
+                            rowIndex: asset.rowIndex,
+                            approvalStatus: newStatus,
+                            clientNote: notes
                         })
                     });
 
-                    saveActionedAd(ad, status, notes);
-                    
-                    const updatedAds = ads.filter(a => a.rowIndex !== ad.rowIndex);
-                    setAds(updatedAds);
-                    
-                    localStorage.setItem('cachedAds', JSON.stringify({
-                        ads: updatedAds,
-                        clientInfo: clientInfo,
-                        timestamp: Date.now()
-                    }));
-                    
+                    setCreativeAssets(prev =>
+                        prev.map(a =>
+                            a.rowIndex === asset.rowIndex
+                                ? { ...a, approvalStatus: newStatus, clientNote: notes }
+                                : a
+                        )
+                    );
+
                     setEditNotes(prev => {
                         const updated = { ...prev };
-                        delete updated[ad.rowIndex];
+                        delete updated[asset.rowIndex];
                         return updated;
                     });
 
-                    showNotification('✓ Update sent successfully!', 'success');
+                    showNotification(`✓ Status: ${newStatus}!`, 'success');
+
+                    // Auto-switch to appropriate tab
+                    if (newStatus.toLowerCase() === 'approved') {
+                        setActiveFilter('approved');
+                    } else if (newStatus.toLowerCase() === 'needs edit') {
+                        setActiveFilter('needs edit');
+                    } else if (newStatus.toLowerCase() === 'rejected') {
+                        setActiveFilter('rejected');
+                    } else if (newStatus.toLowerCase() === 'pending') {
+                        setActiveFilter('pending');
+                    }
+
                 } catch (err) {
                     showNotification('✗ Failed to update', 'error');
                 } finally {
                     setUpdating(prev => {
                         const updated = { ...prev };
-                        delete updated[ad.rowIndex];
+                        delete updated[asset.rowIndex];
                         return updated;
                     });
                 }
             };
 
-            const revertAdStatus = async (ad) => {
-                if (!confirm('Revert this ad back to Pending Review?')) return;
-
-                setUpdating(prev => ({ ...prev, [ad.rowIndex]: true }));
-
-                try {
-                    // Update sheet status to "For Review"
-                    await fetch(CONFIG.APPS_SCRIPT_URL, {
-                        method: 'POST',
-                        mode: 'no-cors',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            rowIndex: ad.rowIndex,
-                            status: 'For Review',
-                            notes: '', // Clear notes
-                            timestamp: new Date().toISOString()
-                        })
-                    });
-
-                    // Remove from actioned ads
-                    removeActionedAd(ad.rowIndex);
-
-                    // Add back to pending ads with updated client info
-                    const revertedAd = {
-                        ...ad,
-                        status: 'For Review',
-                        actionStatus: undefined,
-                        actionNotes: undefined,
-                        actionDate: undefined
-                    };
-
-                    setAds(prev => [revertedAd, ...prev]);
-
-                    // Update cache
-                    localStorage.setItem('cachedAds', JSON.stringify({
-                        ads: [revertedAd, ...ads],
-                        clientInfo: clientInfo,
-                        timestamp: Date.now()
-                    }));
-
-                    showNotification('✓ Ad reverted to pending review!', 'success');
-
-                    // Switch to pending tab
-                    setActiveTab('pending');
-                } catch (err) {
-                    console.error('Revert error:', err);
-                    showNotification('✗ Failed to revert ad', 'error');
-                } finally {
-                    setUpdating(prev => {
-                        const updated = { ...prev };
-                        delete updated[ad.rowIndex];
-                        return updated;
-                    });
-                }
+            const handleNotesChange = (rowIndex, value) => {
+                setEditNotes(prev => ({ ...prev, [rowIndex]: value }));
             };
 
             const showNotification = (message, type) => {
@@ -824,20 +665,35 @@
                 }, 3000);
             };
 
-            const handleNotesChange = (rowIndex, value) => {
-                setEditNotes(prev => ({ ...prev, [rowIndex]: value }));
+            const getFilteredAssets = () => {
+                let filtered = creativeAssets;
+
+                // Filter by approval status
+                if (activeFilter !== 'all') {
+                    filtered = filtered.filter(asset =>
+                        asset.approvalStatus?.toLowerCase() === activeFilter ||
+                        (!asset.approvalStatus && activeFilter === 'pending')
+                    );
+                }
+
+                // Filter by ad status
+                if (adStatusFilter !== 'all') {
+                    filtered = filtered.filter(asset =>
+                        asset.adStatus?.toLowerCase().replace(/\s+/g, '_') === adStatusFilter
+                    );
+                }
+
+                return filtered;
             };
 
-            const handleImageError = (rowIndex) => {
-                setImageErrors(prev => ({ ...prev, [rowIndex]: true }));
-            };
+            const getStats = () => {
+                const total = creativeAssets.length;
+                const pending = creativeAssets.filter(a => !a.approvalStatus || a.approvalStatus.toLowerCase() === 'pending').length;
+                const approved = creativeAssets.filter(a => a.approvalStatus?.toLowerCase() === 'approved').length;
+                const needsEdit = creativeAssets.filter(a => a.approvalStatus?.toLowerCase() === 'needs edit').length;
+                const rejected = creativeAssets.filter(a => a.approvalStatus?.toLowerCase() === 'rejected').length;
 
-            const forceRefresh = () => {
-                // Clear all caches
-                localStorage.removeItem('cachedAds');
-                localStorage.removeItem('actionedAds');
-                // Reload page
-                window.location.reload();
+                return { total, pending, approved, needsEdit, rejected };
             };
 
             if (loading) {
@@ -847,7 +703,7 @@
                         minHeight: '100vh', flexDirection: 'column', gap: '20px'
                     }}>
                         <div className="spinner"></div>
-                        <div style={{ fontSize: '18px', color: '#666' }}>Loading ads...</div>
+                        <div style={{ fontSize: '18px', color: '#666' }}>Loading creative assets...</div>
                     </div>
                 );
             }
@@ -858,7 +714,7 @@
                         display: 'flex', justifyContent: 'center', alignItems: 'center',
                         minHeight: '100vh', padding: '20px'
                     }}>
-                        <div style={{ 
+                        <div style={{
                             textAlign: 'center', maxWidth: '600px', backgroundColor: 'white',
                             padding: '40px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                         }}>
@@ -872,26 +728,18 @@
                 );
             }
 
-            const getCurrentAds = () => {
-                switch(activeTab) {
-                    case 'approved': return actionedAds.approved;
-                    case 'needsEdit': return actionedAds.needsEdit;
-                    case 'rejected': return actionedAds.rejected;
-                    default: return ads;
-                }
-            };
-
-            const currentAds = getCurrentAds();
+            const stats = getStats();
+            const filteredAssets = getFilteredAssets();
 
             return (
-                <div style={{ minHeight: '100vh', backgroundColor: '#f0f2f5', padding: '20px' }}>
-                    <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-                        <div style={{ 
-                            marginBottom: '20px', 
+                <div style={{ minHeight: '100vh', backgroundColor: '#f0f2f5', padding: '20px 40px' }}>
+                    <div style={{ maxWidth: '1600px', margin: '0 auto' }}>
+                        <div style={{
+                            marginBottom: '20px',
                             padding: '20px',
                             backgroundColor: 'white',
-                            borderRadius: '8px',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                            borderRadius: '12px',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
@@ -899,15 +747,15 @@
                             gap: '12px'
                         }}>
                             <div>
-                                <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#050505', marginBottom: '4px' }}>
-                                    Meta Ads Approval Portal
+                                <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#050505', marginBottom: '4px' }}>
+                                    🎨 Creative Assets Approval
                                 </h1>
                                 <p style={{ fontSize: '14px', color: '#65676b' }}>
-                                    {clientInfo?.businessName || 'Client'} - Review and approve ad campaigns
+                                    {clientInfo?.businessName || 'Client'}
                                 </p>
                             </div>
                             <button
-                                onClick={forceRefresh}
+                                onClick={() => window.location.reload()}
                                 style={{
                                     padding: '10px 20px',
                                     backgroundColor: '#1877f2',
@@ -916,38 +764,34 @@
                                     borderRadius: '6px',
                                     fontSize: '14px',
                                     fontWeight: '600',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px'
+                                    cursor: 'pointer'
                                 }}
-                                onMouseOver={(e) => e.target.style.opacity = '0.9'}
-                                onMouseOut={(e) => e.target.style.opacity = '1'}
                             >
-                                🔄 Force Refresh
+                                🔄 Refresh
                             </button>
                         </div>
 
                         <div style={{
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
                             gap: '12px',
                             marginBottom: '20px'
                         }}>
                             {[
-                                { count: ads.length, label: 'Pending', color: '#1877f2' },
-                                { count: actionedAds.approved.length, label: 'Approved', color: '#10b981' },
-                                { count: actionedAds.needsEdit.length, label: 'Needs Edit', color: '#f59e0b' },
-                                { count: actionedAds.rejected.length, label: 'Rejected', color: '#ef4444' }
+                                { count: stats.total, label: 'Total', color: '#6b7280' },
+                                { count: stats.pending, label: 'Pending', color: '#1877f2' },
+                                { count: stats.approved, label: 'Approved', color: '#10b981' },
+                                { count: stats.needsEdit, label: 'Needs Edit', color: '#f59e0b' },
+                                { count: stats.rejected, label: 'Rejected', color: '#ef4444' }
                             ].map((stat, idx) => (
                                 <div key={idx} style={{
                                     backgroundColor: 'white',
                                     padding: '16px',
                                     borderRadius: '8px',
-                                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                                     textAlign: 'center'
                                 }}>
-                                    <div style={{ fontSize: '28px', fontWeight: '700', color: stat.color }}>
+                                    <div style={{ fontSize: '32px', fontWeight: '700', color: stat.color }}>
                                         {stat.count}
                                     </div>
                                     <div style={{ fontSize: '13px', color: '#65676b', marginTop: '4px' }}>
@@ -957,66 +801,104 @@
                             ))}
                         </div>
 
-                        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-                            {[
-                                { id: 'pending', label: 'Pending Review', count: ads.length },
-                                { id: 'approved', label: 'Approved', count: actionedAds.approved.length },
-                                { id: 'needsEdit', label: 'Needs Edit', count: actionedAds.needsEdit.length },
-                                { id: 'rejected', label: 'Rejected', count: actionedAds.rejected.length }
-                            ].map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    style={{
-                                        padding: '10px 20px',
-                                        backgroundColor: activeTab === tab.id ? '#1877f2' : 'white',
-                                        color: activeTab === tab.id ? 'white' : '#65676b',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        fontSize: '14px',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                                    }}
-                                >
-                                    {tab.label} {tab.count > 0 && `(${tab.count})`}
-                                </button>
-                            ))}
+                        {/* Approval Status Filter */}
+                        <div style={{ marginBottom: '12px' }}>
+                            <div style={{ fontSize: '12px', fontWeight: '600', color: '#65676b', marginBottom: '8px', textTransform: 'uppercase' }}>
+                                Approval Status
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                {[
+                                    { id: 'all', label: 'All' },
+                                    { id: 'pending', label: 'Pending' },
+                                    { id: 'approved', label: 'Approved' },
+                                    { id: 'needs edit', label: 'Needs Edit' },
+                                    { id: 'rejected', label: 'Rejected' }
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveFilter(tab.id)}
+                                        style={{
+                                            padding: '8px 16px',
+                                            backgroundColor: activeFilter === tab.id ? '#1877f2' : 'white',
+                                            color: activeFilter === tab.id ? 'white' : '#65676b',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            fontSize: '13px',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                                        }}
+                                    >
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
-                        {currentAds.length === 0 ? (
+                        {/* Ad Status Filter */}
+                        <div style={{ marginBottom: '24px' }}>
+                            <div style={{ fontSize: '12px', fontWeight: '600', color: '#65676b', marginBottom: '8px', textTransform: 'uppercase' }}>
+                                Ad Status
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                {[
+                                    { id: 'all', label: 'All', color: '#6b7280' },
+                                    { id: 'draft', label: '📝 Draft', color: '#6b7280' },
+                                    { id: 'live', label: '🟢 Live', color: '#10b981' },
+                                    { id: 'published', label: '📤 Published', color: '#8b5cf6' }
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setAdStatusFilter(tab.id)}
+                                        style={{
+                                            padding: '8px 16px',
+                                            backgroundColor: adStatusFilter === tab.id ? tab.color : 'white',
+                                            color: adStatusFilter === tab.id ? 'white' : '#65676b',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            fontSize: '13px',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                                        }}
+                                    >
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {filteredAssets.length === 0 ? (
                             <div style={{
                                 backgroundColor: 'white',
-                                borderRadius: '8px',
+                                borderRadius: '12px',
                                 padding: '60px 20px',
                                 textAlign: 'center',
-                                boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                             }}>
-                                <div style={{ fontSize: '48px', marginBottom: '16px' }}>
-                                    {activeTab === 'pending' ? '🎉' : '📭'}
-                                </div>
+                                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
                                 <div style={{ fontSize: '20px', fontWeight: '600', color: '#050505' }}>
-                                    {activeTab === 'pending' ? 'All caught up!' : 'Nothing here yet'}
+                                    No ads found
+                                </div>
+                                <div style={{ fontSize: '14px', color: '#65676b', marginTop: '8px' }}>
+                                    Add creative assets to your sheet
                                 </div>
                             </div>
                         ) : (
                             <div style={{
                                 display: 'grid',
-                                gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))',
-                                gap: '24px'
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))',
+                                gap: '32px'
                             }}>
-                                {currentAds.map((ad) => (
-                                    <FacebookAdCard
-                                        key={ad.rowIndex}
-                                        ad={ad}
-                                        showActions={activeTab === 'pending'}
-                                        editNotes={editNotes}
-                                        handleNotesChange={handleNotesChange}
+                                {filteredAssets.map((asset) => (
+                                    <CreativeAssetCard
+                                        key={asset.rowIndex}
+                                        asset={asset}
+                                        clientInfo={clientInfo}
                                         updating={updating}
-                                        updateAdStatus={updateAdStatus}
-                                        revertAdStatus={activeTab !== 'pending' ? revertAdStatus : null}
-                                        imageErrors={imageErrors}
-                                        handleImageError={handleImageError}
+                                        onStatusUpdate={updateAssetStatus}
+                                        editNotes={editNotes}
+                                        onNotesChange={handleNotesChange}
                                     />
                                 ))}
                             </div>
@@ -1045,7 +927,7 @@
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<AdApprovalPortal />);
+        root.render(<CreativeApprovalPortal />);
     </script>
 </body>
 </html>
