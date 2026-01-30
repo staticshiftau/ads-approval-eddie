@@ -109,13 +109,12 @@
 
             // Ad Status options (internal tracking - read-only in interface)
             AD_STATUSES: {
-                DRAFT: { label: 'Draft', color: '#6b7280', icon: '📝' },
-                IN_REVIEW: { label: 'In Review', color: '#3b82f6', icon: '🔍' },
+                LAUNCHED_LEADS_NO_CALLS: { label: 'Launched - Leads, No Calls', color: '#f59e0b', icon: '📞' },
+                LAUNCHED_NO_LEADS: { label: 'Launched - No Leads', color: '#ef4444', icon: '📉' },
                 LIVE: { label: 'Live', color: '#10b981', icon: '🟢' },
-                PUBLISHED: { label: 'Published', color: '#8b5cf6', icon: '📤' },
-                REJECTED: { label: 'Rejected', color: '#ef4444', icon: '❌' },
-                COMPLETED: { label: 'Completed', color: '#374151', icon: '✅' },
-                SCHEDULED: { label: 'Scheduled', color: '#14b8a6', icon: '📅' }
+                IN_DRAFT: { label: 'In Draft', color: '#6b7280', icon: '📝' },
+                REJECTED_BY_META: { label: 'Rejected by Meta', color: '#dc2626', icon: '🚫' },
+                NOT_LAUNCHED: { label: 'Not Launched', color: '#9ca3af', icon: '⏸️' }
             }
         };
 
@@ -155,13 +154,27 @@
             const getAdStatusInfo = (status) => {
                 const normalized = status?.toLowerCase().replace(/\s+/g, '_');
                 switch(normalized) {
-                    case 'in_review': return CONFIG.AD_STATUSES.IN_REVIEW;
-                    case 'live': return CONFIG.AD_STATUSES.LIVE;
-                    case 'published': return CONFIG.AD_STATUSES.PUBLISHED;
-                    case 'rejected': return CONFIG.AD_STATUSES.REJECTED;
-                    case 'completed': return CONFIG.AD_STATUSES.COMPLETED;
-                    case 'scheduled': return CONFIG.AD_STATUSES.SCHEDULED;
-                    default: return CONFIG.AD_STATUSES.DRAFT;
+                    case 'launched_and_got_leads_but_no_calls_booked':
+                    case 'launched_-_leads,_no_calls':
+                    case 'leads_no_calls':
+                        return CONFIG.AD_STATUSES.LAUNCHED_LEADS_NO_CALLS;
+                    case 'launched_and_didn\'t_get_leads':
+                    case 'launched_and_didnt_get_leads':
+                    case 'launched_-_no_leads':
+                    case 'no_leads':
+                        return CONFIG.AD_STATUSES.LAUNCHED_NO_LEADS;
+                    case 'live':
+                        return CONFIG.AD_STATUSES.LIVE;
+                    case 'in_draft':
+                    case 'draft':
+                        return CONFIG.AD_STATUSES.IN_DRAFT;
+                    case 'rejected_by_meta':
+                    case 'meta_rejected':
+                        return CONFIG.AD_STATUSES.REJECTED_BY_META;
+                    case 'not_launched':
+                        return CONFIG.AD_STATUSES.NOT_LAUNCHED;
+                    default:
+                        return CONFIG.AD_STATUSES.NOT_LAUNCHED;
                 }
             };
 
@@ -678,9 +691,13 @@
 
                 // Filter by ad status
                 if (adStatusFilter !== 'all') {
-                    filtered = filtered.filter(asset =>
-                        asset.adStatus?.toLowerCase().replace(/\s+/g, '_') === adStatusFilter
-                    );
+                    filtered = filtered.filter(asset => {
+                        const statusInfo = getAdStatusInfo(asset.adStatus);
+                        const statusKey = Object.keys(CONFIG.AD_STATUSES).find(
+                            key => CONFIG.AD_STATUSES[key] === statusInfo
+                        );
+                        return statusKey?.toLowerCase() === adStatusFilter;
+                    });
                 }
 
                 return filtered;
@@ -843,9 +860,12 @@
                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                 {[
                                     { id: 'all', label: 'All', color: '#6b7280' },
-                                    { id: 'draft', label: '📝 Draft', color: '#6b7280' },
                                     { id: 'live', label: '🟢 Live', color: '#10b981' },
-                                    { id: 'published', label: '📤 Published', color: '#8b5cf6' }
+                                    { id: 'in_draft', label: '📝 In Draft', color: '#6b7280' },
+                                    { id: 'launched_leads_no_calls', label: '📞 Leads, No Calls', color: '#f59e0b' },
+                                    { id: 'launched_no_leads', label: '📉 No Leads', color: '#ef4444' },
+                                    { id: 'rejected_by_meta', label: '🚫 Rejected by Meta', color: '#dc2626' },
+                                    { id: 'not_launched', label: '⏸️ Not Launched', color: '#9ca3af' }
                                 ].map(tab => (
                                     <button
                                         key={tab.id}
