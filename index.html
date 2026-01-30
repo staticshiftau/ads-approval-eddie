@@ -133,6 +133,34 @@
             );
         };
 
+        // Helper function to get ad status info (shared between components)
+        const getAdStatusInfo = (status) => {
+            const normalized = status?.toLowerCase().replace(/\s+/g, '_');
+            switch(normalized) {
+                case 'launched_and_got_leads_but_no_calls_booked':
+                case 'launched_-_leads,_no_calls':
+                case 'leads_no_calls':
+                    return CONFIG.AD_STATUSES.LAUNCHED_LEADS_NO_CALLS;
+                case 'launched_and_didn\'t_get_leads':
+                case 'launched_and_didnt_get_leads':
+                case 'launched_-_no_leads':
+                case 'no_leads':
+                    return CONFIG.AD_STATUSES.LAUNCHED_NO_LEADS;
+                case 'live':
+                    return CONFIG.AD_STATUSES.LIVE;
+                case 'in_draft':
+                case 'draft':
+                    return CONFIG.AD_STATUSES.IN_DRAFT;
+                case 'rejected_by_meta':
+                case 'meta_rejected':
+                    return CONFIG.AD_STATUSES.REJECTED_BY_META;
+                case 'not_launched':
+                    return CONFIG.AD_STATUSES.NOT_LAUNCHED;
+                default:
+                    return CONFIG.AD_STATUSES.NOT_LAUNCHED;
+            }
+        };
+
         const CreativeAssetCard = ({ asset, clientInfo, updating, onStatusUpdate, editNotes, onNotesChange }) => {
             const [mediaError, setMediaError] = useState(false);
             const [showLightbox, setShowLightbox] = useState(false);
@@ -148,33 +176,6 @@
                     case 'needs edit': return '#f59e0b';
                     case 'rejected': return '#ef4444';
                     default: return '#e4e6eb';
-                }
-            };
-
-            const getAdStatusInfo = (status) => {
-                const normalized = status?.toLowerCase().replace(/\s+/g, '_');
-                switch(normalized) {
-                    case 'launched_and_got_leads_but_no_calls_booked':
-                    case 'launched_-_leads,_no_calls':
-                    case 'leads_no_calls':
-                        return CONFIG.AD_STATUSES.LAUNCHED_LEADS_NO_CALLS;
-                    case 'launched_and_didn\'t_get_leads':
-                    case 'launched_and_didnt_get_leads':
-                    case 'launched_-_no_leads':
-                    case 'no_leads':
-                        return CONFIG.AD_STATUSES.LAUNCHED_NO_LEADS;
-                    case 'live':
-                        return CONFIG.AD_STATUSES.LIVE;
-                    case 'in_draft':
-                    case 'draft':
-                        return CONFIG.AD_STATUSES.IN_DRAFT;
-                    case 'rejected_by_meta':
-                    case 'meta_rejected':
-                        return CONFIG.AD_STATUSES.REJECTED_BY_META;
-                    case 'not_launched':
-                        return CONFIG.AD_STATUSES.NOT_LAUNCHED;
-                    default:
-                        return CONFIG.AD_STATUSES.NOT_LAUNCHED;
                 }
             };
 
@@ -693,10 +694,14 @@
                 if (adStatusFilter !== 'all') {
                     filtered = filtered.filter(asset => {
                         const statusInfo = getAdStatusInfo(asset.adStatus);
-                        const statusKey = Object.keys(CONFIG.AD_STATUSES).find(
-                            key => CONFIG.AD_STATUSES[key] === statusInfo
-                        );
-                        return statusKey?.toLowerCase() === adStatusFilter;
+                        // Match against the filter ID
+                        if (adStatusFilter === 'live' && statusInfo === CONFIG.AD_STATUSES.LIVE) return true;
+                        if (adStatusFilter === 'in_draft' && statusInfo === CONFIG.AD_STATUSES.IN_DRAFT) return true;
+                        if (adStatusFilter === 'launched_leads_no_calls' && statusInfo === CONFIG.AD_STATUSES.LAUNCHED_LEADS_NO_CALLS) return true;
+                        if (adStatusFilter === 'launched_no_leads' && statusInfo === CONFIG.AD_STATUSES.LAUNCHED_NO_LEADS) return true;
+                        if (adStatusFilter === 'rejected_by_meta' && statusInfo === CONFIG.AD_STATUSES.REJECTED_BY_META) return true;
+                        if (adStatusFilter === 'not_launched' && statusInfo === CONFIG.AD_STATUSES.NOT_LAUNCHED) return true;
+                        return false;
                     });
                 }
 
