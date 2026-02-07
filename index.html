@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Creative Assets Approval Portal</title>
+    <title>Ads Approval Portal</title>
     <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -63,12 +63,25 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
+        // =====================================================
+        // CONFIGURATION - Eddie
+        // =====================================================
         const CONFIG = {
             SHEET_ID: '1OQxNLz4IuwsVOSVBTOyvZK-a_9mog81Cns5XGZYBFXU',
             API_KEY: 'AIzaSyABznAS0fH0tYNh6wlS_iEL08b6znNJCL8',
             CREATIVE_ASSETS_SHEET: 'Ads Masterlist',
             CLIENT_INFO_SHEET: 'Client Info',
             APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzyOjeUnw43AIEvjIy8XGaIGtijkNvVLRyIUdGKjIwisj8dHV0ycoOlMHCIwxxJ-jU/exec',
+
+            // Edit mode passcode (for Static Shift team only)
+            EDIT_PASSCODE: 'staticshift',
+
+            // GDrive creative assets folder
+            GDRIVE_FOLDER_URL: 'https://drive.google.com/drive/folders/1NbKd5ApBrfjzrS8NwTk8bbOjeONPWxJP?usp=drive_link',
+
+        // =====================================================
+        // END CONFIGURATION - DO NOT EDIT BELOW THIS LINE
+        // =====================================================
 
             COPIES_COLUMNS: {
                 STATUS: 0,
@@ -80,23 +93,28 @@
                 LAST_UPDATED: 10
             },
 
-            // Updated column mapping for Creative Assets sheet
+            // Column mapping for Ads Masterlist sheet
             // A=Approval Status, B=Ad Status, C=Ad Name, D=Description, E=Campaign Angle,
-            // F=Headline, G=Ad Copy (Body), H=GDrive Link (skip), I=Direct URL (image),
-            // J=Image Text (skip), K=Client Note, L=Updated Date
+            // F=Headline, G=Ad Copy (Body), H=GDrive Link, I=Direct URL (image),
+            // J=Image Text, K=Client Note, L=Updated Date,
+            // M=Media 2, N=Media 3, O=Media 4, P=Media 5
             ASSETS_COLUMNS: {
-                APPROVAL_STATUS: 0,    // Column A - for client approval (Pending/Approved/Needs Edit/Rejected)
-                AD_STATUS: 1,          // Column B - internal Meta status (Draft/Live/Published/etc)
+                APPROVAL_STATUS: 0,    // Column A
+                AD_STATUS: 1,          // Column B
                 AD_NAME: 2,            // Column C
                 DESCRIPTION: 3,        // Column D
                 CAMPAIGN_ANGLE: 4,     // Column E
                 HEADLINE: 5,           // Column F
                 AD_COPY_BODY: 6,       // Column G
-                GDRIVE_LINK: 7,        // Column H - not used for display
-                DIRECT_URL: 8,         // Column I - use this for displaying images
-                IMAGE_TEXT: 9,         // Column J - not shown
+                GDRIVE_LINK: 7,        // Column H - raw GDrive link
+                DIRECT_URL: 8,         // Column I - formula-converted URL
+                IMAGE_TEXT: 9,         // Column J
                 CLIENT_NOTE: 10,       // Column K
-                UPDATED_DATE: 11       // Column L
+                UPDATED_DATE: 11,      // Column L
+                MEDIA_2: 12,           // Column M - additional media (raw GDrive or direct URL)
+                MEDIA_3: 13,           // Column N
+                MEDIA_4: 14,           // Column O
+                MEDIA_5: 15            // Column P
             },
 
             CLIENT_COLUMNS: {
@@ -107,7 +125,6 @@
                 PROFILE_IMAGE: 4
             },
 
-            // Ad Status options (internal tracking - read-only in interface)
             AD_STATUSES: {
                 LAUNCHED_LEADS_NO_CALLS: { label: 'Launched - Leads, No Calls', color: '#f59e0b', icon: '📞' },
                 LAUNCHED_NO_LEADS: { label: 'Launched - No Leads', color: '#ef4444', icon: '📉' },
@@ -118,14 +135,42 @@
             }
         };
 
-        const Lightbox = ({ mediaUrl, mediaType, onClose }) => {
-            const isVideo = mediaType?.toLowerCase() === 'video';
+        // =====================================================
+        // UTILITY FUNCTIONS
+        // =====================================================
 
+        // Convert Google Drive share links to displayable URLs
+        // Replicates the sheet formula: =IF(H="","",IF(ISNUMBER(SEARCH("drive.google.com",H)),"https://lh3.googleusercontent.com/d/"&REGEXEXTRACT(H,"/d/([^/]+)"),H))
+        const convertMediaUrl = (url) => {
+            if (!url || !url.trim()) return null;
+            url = url.trim();
+            if (url.includes('drive.google.com')) {
+                const match = url.match(/\/d\/([^/]+)/);
+                if (match) return 'https://lh3.googleusercontent.com/d/' + match[1];
+            }
+            return url;
+        };
+
+        // Detect if a URL points to a video file
+        const isVideoUrl = (url) => {
+            if (!url) return false;
+            const lower = url.toLowerCase();
+            return lower.endsWith('.mp4') || lower.endsWith('.mov') ||
+                   lower.endsWith('.webm') || lower.endsWith('.avi') ||
+                   lower.includes('video');
+        };
+
+        // =====================================================
+        // COMPONENTS
+        // =====================================================
+
+        const Lightbox = ({ mediaUrl, mediaType, onClose }) => {
+            const isVideo = mediaType === 'video';
             return (
                 <div className="lightbox" onClick={onClose}>
                     <span className="lightbox-close" onClick={onClose}>&times;</span>
                     {isVideo ? (
-                        <video src={mediaUrl} controls autoPlay style={{ maxWidth: '90%', maxHeight: '90%' }} />
+                        <video src={mediaUrl} controls autoPlay style={{ maxWidth: '90%', maxHeight: '90%' }} onClick={e => e.stopPropagation()} />
                     ) : (
                         <img src={mediaUrl} alt="Full size" />
                     )}
@@ -133,7 +178,64 @@
             );
         };
 
-        // Helper function to get ad status info (shared between components)
+        // Passcode modal for edit mode
+        const PasscodeModal = ({ onSuccess, onClose }) => {
+            const [passcode, setPasscode] = useState('');
+            const [error, setError] = useState(false);
+
+            const handleSubmit = () => {
+                if (passcode === CONFIG.EDIT_PASSCODE) {
+                    onSuccess();
+                    onClose();
+                } else {
+                    setError(true);
+                    setPasscode('');
+                }
+            };
+
+            return (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+                    background: 'rgba(0,0,0,0.5)', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', zIndex: 10000
+                }} onClick={onClose}>
+                    <div style={{
+                        background: 'white', borderRadius: '12px', padding: '32px',
+                        maxWidth: '400px', width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)'
+                    }} onClick={e => e.stopPropagation()}>
+                        <h3 style={{ marginBottom: '8px', fontSize: '18px', color: '#050505' }}>
+                            Enter Edit Passcode
+                        </h3>
+                        <p style={{ marginBottom: '16px', fontSize: '13px', color: '#65676b' }}>
+                            Team members can unlock editing to update ad copy directly.
+                        </p>
+                        <input
+                            type="password"
+                            value={passcode}
+                            onChange={e => { setPasscode(e.target.value); setError(false); }}
+                            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                            placeholder="Enter passcode..."
+                            autoFocus
+                            style={{
+                                width: '100%', padding: '12px', border: `2px solid ${error ? '#ef4444' : '#e4e6eb'}`,
+                                borderRadius: '8px', fontSize: '16px', marginBottom: '8px', outline: 'none'
+                            }}
+                        />
+                        {error && <div style={{ color: '#ef4444', fontSize: '13px', marginBottom: '8px' }}>
+                            Incorrect passcode. Try again.
+                        </div>}
+                        <button onClick={handleSubmit} style={{
+                            width: '100%', padding: '12px', backgroundColor: '#1877f2',
+                            color: 'white', border: 'none', borderRadius: '8px',
+                            fontSize: '15px', fontWeight: '600', cursor: 'pointer', marginTop: '4px'
+                        }}>
+                            Unlock Editing
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
         const getAdStatusInfo = (status) => {
             const normalized = status?.toLowerCase().replace(/\s+/g, '_');
             switch(normalized) {
@@ -161,14 +263,21 @@
             }
         };
 
-        const CreativeAssetCard = ({ asset, clientInfo, updating, onStatusUpdate, editNotes, onNotesChange }) => {
-            const [mediaError, setMediaError] = useState(false);
-            const [showLightbox, setShowLightbox] = useState(false);
+        const CreativeAssetCard = ({
+            asset, clientInfo, updating, onStatusUpdate, editNotes, onNotesChange,
+            isAuthenticated, editingContent, onContentChange, onContentSave, savingContent, onEditClick
+        }) => {
+            const [mediaErrors, setMediaErrors] = useState({});
+            const [lightboxUrl, setLightboxUrl] = useState(null);
+            const [lightboxType, setLightboxType] = useState('image');
             const [isExpanded, setIsExpanded] = useState(false);
+            const [showVariants, setShowVariants] = useState(false);
+            const [swappingMedia, setSwappingMedia] = useState(null); // which media slot is being swapped (0=hero, 1-4=variants)
 
-            const isVideo = asset.assetUrl?.toLowerCase().includes('video') ||
-                           asset.assetUrl?.toLowerCase().endsWith('.mp4') ||
-                           asset.assetUrl?.toLowerCase().endsWith('.mov');
+            const variantUrls = asset.mediaUrls && asset.mediaUrls.length > 1 ? asset.mediaUrls.slice(1) : [];
+            const hasVariants = variantUrls.length > 0;
+            const primaryUrl = asset.mediaUrls && asset.mediaUrls.length > 0 ? asset.mediaUrls[0] : null;
+            const primaryIsVideo = isVideoUrl(primaryUrl);
 
             const getStatusColor = (status) => {
                 switch(status?.toLowerCase()) {
@@ -180,9 +289,33 @@
             };
 
             const adStatusInfo = getAdStatusInfo(asset.adStatus);
-            const adCopyText = asset.adCopyBody || '';
-            const shouldTruncate = adCopyText.length > 150;
+            const editState = editingContent[asset.rowIndex] || {};
+            const isEditing = isAuthenticated && Object.keys(editState).length > 0;
+            const isSaving = savingContent[asset.rowIndex];
+
+            // For display: use edit state if editing, otherwise asset data
+            const displayHeadline = editState.headline !== undefined ? editState.headline : asset.headline;
+            const displayAdCopy = editState.adCopyBody !== undefined ? editState.adCopyBody : asset.adCopyBody;
+            const displayDescription = editState.description !== undefined ? editState.description : asset.description;
+
+            const adCopyText = displayAdCopy || '';
+            const shouldTruncate = adCopyText.length > 150 && !isAuthenticated;
             const displayUrl = clientInfo?.websiteUrl?.replace(/^https?:\/\//, '').replace(/\/$/, '') || 'example.com';
+
+            const handleMediaError = (idx) => {
+                setMediaErrors(prev => ({ ...prev, [idx]: true }));
+            };
+
+            const openLightbox = (url) => {
+                setLightboxUrl(url);
+                setLightboxType(isVideoUrl(url) ? 'video' : 'image');
+            };
+
+            // Check if content has been modified (text or media)
+            const hasChanges = editState.headline !== undefined || editState.adCopyBody !== undefined ||
+                editState.description !== undefined || editState.mediaUrl_0 !== undefined ||
+                editState.mediaUrl_1 !== undefined || editState.mediaUrl_2 !== undefined ||
+                editState.mediaUrl_3 !== undefined || editState.mediaUrl_4 !== undefined;
 
             return (
                 <>
@@ -193,7 +326,7 @@
                         boxShadow: '0 1px 2px rgba(0, 0, 0, 0.1)',
                         border: `2px solid ${getStatusColor(asset.approvalStatus)}`
                     }}>
-                        {/* Facebook-style Header with Profile */}
+                        {/* Header */}
                         <div style={{
                             padding: '12px',
                             display: 'flex',
@@ -201,91 +334,80 @@
                             gap: '10px',
                             borderBottom: '1px solid #e4e6eb'
                         }}>
-                            {/* Profile Image */}
                             <div style={{
-                                width: '40px',
-                                height: '40px',
-                                borderRadius: '50%',
-                                backgroundColor: '#e4e6eb',
-                                overflow: 'hidden',
-                                flexShrink: 0
+                                width: '40px', height: '40px', borderRadius: '50%',
+                                backgroundColor: '#e4e6eb', overflow: 'hidden', flexShrink: 0
                             }}>
                                 {clientInfo?.profileImage ? (
-                                    <img
-                                        src={clientInfo.profileImage}
-                                        alt={clientInfo.businessName}
+                                    <img src={clientInfo.profileImage} alt={clientInfo.businessName}
                                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                        onError={(e) => { e.target.style.display = 'none'; }}
-                                    />
+                                        onError={(e) => { e.target.style.display = 'none'; }} />
                                 ) : (
                                     <div style={{
-                                        width: '100%',
-                                        height: '100%',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        backgroundColor: '#1877f2',
-                                        color: 'white',
-                                        fontSize: '18px',
-                                        fontWeight: '600'
+                                        width: '100%', height: '100%', display: 'flex',
+                                        alignItems: 'center', justifyContent: 'center',
+                                        backgroundColor: '#1877f2', color: 'white', fontSize: '18px', fontWeight: '600'
                                     }}>
                                         {(clientInfo?.businessName || 'C').charAt(0).toUpperCase()}
                                     </div>
                                 )}
                             </div>
 
-                            {/* Name and Sponsored */}
                             <div style={{ flex: 1 }}>
-                                <div style={{
-                                    fontSize: '14px',
-                                    fontWeight: '600',
-                                    color: '#050505'
-                                }}>
+                                <div style={{ fontSize: '14px', fontWeight: '600', color: '#050505' }}>
                                     {clientInfo?.businessName || 'Client Name'}
                                 </div>
-                                <div style={{
-                                    fontSize: '12px',
-                                    color: '#65676b'
-                                }}>
-                                    Sponsored
-                                </div>
+                                <div style={{ fontSize: '12px', color: '#65676b' }}>Sponsored</div>
                             </div>
 
-                            {/* Ad Status Badge - Read Only */}
+                            {/* Edit Icon */}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!isAuthenticated) onEditClick();
+                                }}
+                                title={isAuthenticated ? 'Edit mode active' : 'Unlock editing'}
+                                style={{
+                                    background: 'none', border: 'none', cursor: 'pointer',
+                                    fontSize: '16px', padding: '4px 8px', borderRadius: '6px',
+                                    color: isAuthenticated ? '#1877f2' : '#65676b',
+                                    backgroundColor: isAuthenticated ? '#e7f0ff' : 'transparent'
+                                }}
+                            >
+                                ✏️
+                            </button>
+
+                            {/* Ad Status Badge */}
                             <div style={{
-                                backgroundColor: adStatusInfo.color,
-                                color: 'white',
-                                padding: '4px 10px',
-                                borderRadius: '12px',
-                                fontSize: '11px',
-                                fontWeight: '600',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.3px'
+                                backgroundColor: adStatusInfo.color, color: 'white',
+                                padding: '4px 10px', borderRadius: '12px', fontSize: '11px',
+                                fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.3px'
                             }}>
                                 {adStatusInfo.icon} {adStatusInfo.label}
                             </div>
                         </div>
 
-                        {/* Ad Copy Text */}
-                        {adCopyText && (
-                            <div style={{ padding: '12px', paddingBottom: '8px' }}>
-                                <div style={{
-                                    fontSize: '14px',
-                                    color: '#050505',
-                                    lineHeight: '1.5',
-                                    whiteSpace: 'pre-wrap'
-                                }}>
+                        {/* Ad Copy Text - Editable when authenticated */}
+                        <div style={{ padding: '8px 12px' }}>
+                            {isAuthenticated ? (
+                                <textarea
+                                    value={displayAdCopy}
+                                    onChange={e => onContentChange(asset.rowIndex, 'adCopyBody', e.target.value)}
+                                    placeholder="Ad copy body..."
+                                    style={{
+                                        width: '100%', minHeight: '100px', padding: '10px',
+                                        borderRadius: '8px', border: '2px solid #d1e0ff',
+                                        fontSize: '14px', fontFamily: 'inherit', resize: 'vertical',
+                                        backgroundColor: '#f8faff', lineHeight: '1.5', whiteSpace: 'pre-wrap'
+                                    }}
+                                />
+                            ) : adCopyText ? (
+                                <div style={{ fontSize: '14px', color: '#050505', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
                                     {shouldTruncate && !isExpanded ? (
                                         <>
                                             {adCopyText.substring(0, 280)}...{' '}
-                                            <span
-                                                onClick={() => setIsExpanded(true)}
-                                                style={{
-                                                    color: '#65676b',
-                                                    fontWeight: '600',
-                                                    cursor: 'pointer'
-                                                }}
-                                            >
+                                            <span onClick={() => setIsExpanded(true)}
+                                                style={{ color: '#65676b', fontWeight: '600', cursor: 'pointer' }}>
                                                 See more
                                             </span>
                                         </>
@@ -293,187 +415,324 @@
                                         <>
                                             {adCopyText}
                                             {shouldTruncate && isExpanded && (
-                                                <>
-                                                    {' '}
-                                                    <span
-                                                        onClick={() => setIsExpanded(false)}
-                                                        style={{
-                                                            color: '#65676b',
-                                                            fontWeight: '600',
-                                                            cursor: 'pointer'
-                                                        }}
-                                                    >
-                                                        See less
-                                                    </span>
-                                                </>
+                                                <> <span onClick={() => setIsExpanded(false)}
+                                                    style={{ color: '#65676b', fontWeight: '600', cursor: 'pointer' }}>
+                                                    See less
+                                                </span></>
                                             )}
                                         </>
                                     )}
                                 </div>
-                            </div>
-                        )}
+                            ) : null}
+                        </div>
 
-                        {/* Creative Image/Video */}
-                        <div
-                            style={{
-                                width: '100%',
-                                minHeight: '200px',
-                                backgroundColor: '#f0f2f5',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: asset.assetUrl && !mediaError ? 'pointer' : 'default',
-                                position: 'relative'
-                            }}
-                            onClick={() => {
-                                if (asset.assetUrl && !mediaError) {
-                                    setShowLightbox(true);
-                                }
-                            }}
-                        >
-                            {asset.assetUrl && !mediaError ? (
-                                isVideo ? (
-                                    <video
-                                        src={asset.assetUrl}
-                                        style={{
-                                            width: '100%',
-                                            maxHeight: '500px',
-                                            objectFit: 'contain'
-                                        }}
-                                        onError={() => setMediaError(true)}
-                                    />
+                        {/* Hero Image/Video (always shows Column I as the main ad creative) */}
+                        <div style={{ position: 'relative' }}>
+                            <div
+                                style={{
+                                    width: '100%', minHeight: '200px', backgroundColor: '#f0f2f5',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    cursor: primaryUrl && !mediaErrors[0] && !isAuthenticated ? 'pointer' : 'default',
+                                    position: 'relative'
+                                }}
+                                onClick={() => { if (primaryUrl && !mediaErrors[0] && !isAuthenticated) openLightbox(primaryUrl); }}
+                            >
+                                {primaryUrl && !mediaErrors[0] ? (
+                                    primaryIsVideo ? (
+                                        <video src={primaryUrl}
+                                            style={{ width: '100%', maxHeight: '500px', objectFit: 'contain' }}
+                                            onError={() => handleMediaError(0)} />
+                                    ) : (
+                                        <img src={primaryUrl} alt={asset.adName}
+                                            style={{ width: '100%', maxHeight: '500px', objectFit: 'contain' }}
+                                            onError={() => handleMediaError(0)} />
+                                    )
+                                ) : primaryUrl && mediaErrors[0] ? (
+                                    <div style={{ textAlign: 'center', padding: '20px', color: '#65676b' }}>
+                                        <div style={{ fontSize: '48px', marginBottom: '8px' }}>🖼️</div>
+                                        <div style={{ fontSize: '14px', marginBottom: '8px' }}>Failed to load media</div>
+                                        <a href={primaryUrl} target="_blank" rel="noopener noreferrer"
+                                            style={{ fontSize: '12px', color: '#1877f2', textDecoration: 'underline' }}
+                                            onClick={e => e.stopPropagation()}>
+                                            Open link directly
+                                        </a>
+                                    </div>
                                 ) : (
-                                    <img
-                                        src={asset.assetUrl}
-                                        alt={asset.adName}
+                                    <div style={{ textAlign: 'center', color: '#65676b' }}>
+                                        <div style={{ fontSize: '48px', marginBottom: '8px' }}>
+                                            {primaryIsVideo ? '🎥' : '📷'}
+                                        </div>
+                                        <div style={{ fontSize: '14px' }}>No media</div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Swap image button (edit mode only) */}
+                            {isAuthenticated && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setSwappingMedia(swappingMedia === 0 ? null : 0); }}
+                                    style={{
+                                        position: 'absolute', top: '10px', right: '10px',
+                                        backgroundColor: 'rgba(0,0,0,0.7)', color: 'white',
+                                        border: 'none', borderRadius: '8px', padding: '6px 12px',
+                                        fontSize: '12px', fontWeight: '600', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', gap: '4px', zIndex: 5
+                                    }}
+                                >
+                                    🔄 Swap Image
+                                </button>
+                            )}
+
+                            {/* URL input for swapping hero image */}
+                            {swappingMedia === 0 && (
+                                <div style={{
+                                    padding: '10px 12px', backgroundColor: '#f0f7ff',
+                                    borderTop: '2px solid #1877f2',
+                                    display: 'flex', gap: '8px', alignItems: 'center'
+                                }}>
+                                    <input
+                                        type="text"
+                                        placeholder="Paste GDrive link or image URL..."
+                                        value={editState.mediaUrl_0 || ''}
+                                        onChange={e => onContentChange(asset.rowIndex, 'mediaUrl_0', e.target.value)}
+                                        autoFocus
                                         style={{
-                                            width: '100%',
-                                            maxHeight: '500px',
-                                            objectFit: 'contain'
+                                            flex: 1, padding: '8px 10px', border: '2px solid #d1e0ff',
+                                            borderRadius: '6px', fontSize: '13px', outline: 'none'
                                         }}
-                                        onError={() => setMediaError(true)}
                                     />
-                                )
-                            ) : asset.assetUrl && mediaError ? (
-                                <div style={{ textAlign: 'center', padding: '20px', color: '#65676b' }}>
-                                    <div style={{ fontSize: '48px', marginBottom: '8px' }}>🖼️</div>
-                                    <div style={{ fontSize: '14px', marginBottom: '8px' }}>
-                                        Failed to load media
-                                    </div>
-                                    <a
-                                        href={asset.assetUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        style={{ fontSize: '12px', color: '#1877f2', textDecoration: 'underline' }}
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        Open link directly
-                                    </a>
-                                </div>
-                            ) : (
-                                <div style={{ textAlign: 'center', color: '#65676b' }}>
-                                    <div style={{ fontSize: '48px', marginBottom: '8px' }}>
-                                        {isVideo ? '🎥' : '📷'}
-                                    </div>
-                                    <div style={{ fontSize: '14px' }}>No media</div>
+                                    <button onClick={() => setSwappingMedia(null)}
+                                        style={{
+                                            padding: '8px 12px', backgroundColor: '#e4e6eb', border: 'none',
+                                            borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer'
+                                        }}>
+                                        Done
+                                    </button>
                                 </div>
                             )}
                         </div>
 
-                        {/* URL Preview Bar */}
+                        {/* Collapsible Variant Images (Columns M-P) */}
+                        {hasVariants && (
+                            <div style={{ borderTop: '1px solid #e4e6eb' }}>
+                                <button
+                                    onClick={() => setShowVariants(!showVariants)}
+                                    style={{
+                                        width: '100%', padding: '10px 12px', border: 'none',
+                                        backgroundColor: '#f8f9fa', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        fontSize: '13px', fontWeight: '600', color: '#1877f2'
+                                    }}
+                                >
+                                    <span>
+                                        {showVariants ? 'Hide' : 'View'} {variantUrls.length} more creative variation{variantUrls.length > 1 ? 's' : ''}
+                                    </span>
+                                    <span style={{ fontSize: '16px', transition: 'transform 0.2s',
+                                        transform: showVariants ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                                        ▼
+                                    </span>
+                                </button>
+                                {showVariants && (
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: variantUrls.length === 1 ? '1fr' : 'repeat(auto-fill, minmax(160px, 1fr))',
+                                        gap: '8px', padding: '12px', backgroundColor: '#f8f9fa'
+                                    }}>
+                                        {variantUrls.map((url, idx) => {
+                                            const variantIdx = idx + 1;
+                                            const isVid = isVideoUrl(url);
+                                            const hasError = mediaErrors[variantIdx];
+                                            return (
+                                                <div key={variantIdx} style={{
+                                                    position: 'relative', backgroundColor: '#fff',
+                                                    borderRadius: '8px', overflow: 'hidden',
+                                                    border: '1px solid #e4e6eb'
+                                                }}>
+                                                    <div style={{
+                                                        aspectRatio: '1', overflow: 'hidden',
+                                                        cursor: !hasError && !isAuthenticated ? 'pointer' : 'default'
+                                                    }}
+                                                    onClick={() => { if (!hasError && !isAuthenticated) openLightbox(url); }}>
+                                                        {!hasError ? (
+                                                            isVid ? (
+                                                                <video src={url}
+                                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                                    onError={() => handleMediaError(variantIdx)} />
+                                                            ) : (
+                                                                <img src={url} alt={`Variation ${variantIdx + 1}`}
+                                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                                    onError={() => handleMediaError(variantIdx)} />
+                                                            )
+                                                        ) : (
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                height: '100%', color: '#65676b', padding: '12px', textAlign: 'center' }}>
+                                                                <div>
+                                                                    <div style={{ fontSize: '24px', marginBottom: '4px' }}>🖼️</div>
+                                                                    <div style={{ fontSize: '12px' }}>Failed to load</div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {/* Swap button on variant */}
+                                                        {isAuthenticated && (
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); setSwappingMedia(swappingMedia === variantIdx ? null : variantIdx); }}
+                                                                style={{
+                                                                    position: 'absolute', top: '6px', right: '6px',
+                                                                    backgroundColor: 'rgba(0,0,0,0.7)', color: 'white',
+                                                                    border: 'none', borderRadius: '6px', padding: '4px 8px',
+                                                                    fontSize: '11px', fontWeight: '600', cursor: 'pointer', zIndex: 5
+                                                                }}
+                                                            >
+                                                                🔄
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <div style={{
+                                                        padding: '6px 8px', fontSize: '11px', fontWeight: '600',
+                                                        color: '#65676b', textAlign: 'center', borderTop: '1px solid #e4e6eb'
+                                                    }}>
+                                                        {isVid ? 'Video' : 'Image'} Variation {variantIdx + 1}
+                                                    </div>
+                                                    {/* URL input for swapping variant */}
+                                                    {swappingMedia === variantIdx && (
+                                                        <div style={{
+                                                            padding: '8px', backgroundColor: '#f0f7ff',
+                                                            borderTop: '2px solid #1877f2'
+                                                        }}>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Paste GDrive link or URL..."
+                                                                value={editState[`mediaUrl_${variantIdx}`] || ''}
+                                                                onChange={e => onContentChange(asset.rowIndex, `mediaUrl_${variantIdx}`, e.target.value)}
+                                                                autoFocus
+                                                                style={{
+                                                                    width: '100%', padding: '6px 8px', border: '2px solid #d1e0ff',
+                                                                    borderRadius: '6px', fontSize: '12px', outline: 'none'
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* URL Preview Bar - Headline editable when authenticated */}
                         <div style={{
-                            padding: '12px',
-                            backgroundColor: '#f0f2f5',
+                            padding: '12px', backgroundColor: '#f0f2f5',
                             borderTop: '1px solid #e4e6eb',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '12px'
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px'
                         }}>
                             <div style={{ flex: 1 }}>
-                                <div style={{
-                                    fontSize: '12px',
-                                    color: '#65676b',
-                                    textTransform: 'uppercase',
-                                    marginBottom: '4px'
-                                }}>
+                                <div style={{ fontSize: '12px', color: '#65676b', textTransform: 'uppercase', marginBottom: '4px' }}>
                                     {displayUrl}
                                 </div>
-                                <div style={{
-                                    fontSize: '15px',
-                                    fontWeight: '600',
-                                    color: '#050505',
-                                    lineHeight: '1.3'
-                                }}>
-                                    {asset.headline || asset.adName || 'Ad Headline'}
-                                </div>
+                                {isAuthenticated ? (
+                                    <input
+                                        type="text"
+                                        value={displayHeadline}
+                                        onChange={e => onContentChange(asset.rowIndex, 'headline', e.target.value)}
+                                        placeholder="Ad Headline..."
+                                        style={{
+                                            width: '100%', padding: '6px 8px', border: '2px solid #d1e0ff',
+                                            borderRadius: '6px', fontSize: '15px', fontWeight: '600',
+                                            color: '#050505', backgroundColor: '#f8faff', outline: 'none'
+                                        }}
+                                    />
+                                ) : (
+                                    <div style={{ fontSize: '15px', fontWeight: '600', color: '#050505', lineHeight: '1.3' }}>
+                                        {displayHeadline || asset.adName || 'Ad Headline'}
+                                    </div>
+                                )}
                             </div>
                             <button style={{
-                                padding: '8px 16px',
-                                backgroundColor: '#e4e6eb',
-                                color: '#050505',
-                                border: 'none',
-                                borderRadius: '6px',
-                                fontSize: '14px',
-                                fontWeight: '600',
-                                cursor: 'default',
-                                whiteSpace: 'nowrap',
-                                flexShrink: 0
+                                padding: '8px 16px', backgroundColor: '#e4e6eb', color: '#050505',
+                                border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: '600',
+                                cursor: 'default', whiteSpace: 'nowrap', flexShrink: 0
                             }}>
                                 Learn more
                             </button>
                         </div>
 
-                        {/* Engagement Buttons Row (Facebook style - decorative) */}
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-around',
-                            padding: '8px 12px',
-                            borderTop: '1px solid #e4e6eb',
-                            borderBottom: '1px solid #e4e6eb'
-                        }}>
-                            {['👍 Like', '💬 Comment', '↗️ Share'].map((action, idx) => (
-                                <div
-                                    key={idx}
+                        {/* Description - Editable when authenticated */}
+                        {(isAuthenticated || displayDescription) && (
+                            <div style={{ padding: '8px 12px', borderTop: '1px solid #e4e6eb' }}>
+                                <div style={{ fontSize: '11px', color: '#65676b', textTransform: 'uppercase', marginBottom: '4px', fontWeight: '600' }}>
+                                    Description
+                                </div>
+                                {isAuthenticated ? (
+                                    <input
+                                        type="text"
+                                        value={displayDescription}
+                                        onChange={e => onContentChange(asset.rowIndex, 'description', e.target.value)}
+                                        placeholder="Ad description..."
+                                        style={{
+                                            width: '100%', padding: '6px 8px', border: '2px solid #d1e0ff',
+                                            borderRadius: '6px', fontSize: '13px', color: '#050505',
+                                            backgroundColor: '#f8faff', outline: 'none'
+                                        }}
+                                    />
+                                ) : (
+                                    <div style={{ fontSize: '13px', color: '#65676b', lineHeight: '1.4' }}>
+                                        {displayDescription}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Save Changes Button (only when editing) */}
+                        {isAuthenticated && hasChanges && (
+                            <div style={{ padding: '8px 12px' }}>
+                                <button
+                                    onClick={() => onContentSave(asset)}
+                                    disabled={isSaving}
                                     style={{
-                                        flex: 1,
-                                        textAlign: 'center',
-                                        padding: '8px',
-                                        fontSize: '13px',
-                                        color: '#65676b',
-                                        fontWeight: '600'
+                                        width: '100%', padding: '10px', backgroundColor: isSaving ? '#93c5fd' : '#1877f2',
+                                        color: 'white', border: 'none', borderRadius: '6px',
+                                        fontSize: '14px', fontWeight: '600',
+                                        cursor: isSaving ? 'not-allowed' : 'pointer'
                                     }}
                                 >
+                                    {isSaving ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Engagement Buttons (decorative) */}
+                        <div style={{
+                            display: 'flex', justifyContent: 'space-around', padding: '8px 12px',
+                            borderTop: '1px solid #e4e6eb', borderBottom: '1px solid #e4e6eb'
+                        }}>
+                            {['👍 Like', '💬 Comment', '↗️ Share'].map((action, idx) => (
+                                <div key={idx} style={{
+                                    flex: 1, textAlign: 'center', padding: '8px',
+                                    fontSize: '13px', color: '#65676b', fontWeight: '600'
+                                }}>
                                     {action}
                                 </div>
                             ))}
                         </div>
 
-                        {/* Feedback Notes Section */}
+                        {/* Feedback Notes */}
                         <div style={{ padding: '12px' }}>
                             <div style={{
-                                fontSize: '12px',
-                                fontWeight: '600',
-                                color: '#65676b',
-                                marginBottom: '8px',
-                                textTransform: 'uppercase'
+                                fontSize: '12px', fontWeight: '600', color: '#65676b',
+                                marginBottom: '8px', textTransform: 'uppercase'
                             }}>
                                 Feedback Notes
                             </div>
                             <textarea
                                 placeholder="Add feedback notes (optional)..."
                                 value={editNotes[asset.rowIndex] || asset.clientNote || ''}
-                                onChange={(e) => onNotesChange(asset.rowIndex, e.target.value)}
+                                onChange={e => onNotesChange(asset.rowIndex, e.target.value)}
                                 disabled={updating[asset.rowIndex]}
                                 style={{
-                                    width: '100%',
-                                    minHeight: '70px',
-                                    padding: '10px',
-                                    borderRadius: '8px',
-                                    border: '1px solid #e4e6eb',
-                                    fontSize: '14px',
-                                    fontFamily: 'inherit',
-                                    resize: 'vertical',
+                                    width: '100%', minHeight: '70px', padding: '10px',
+                                    borderRadius: '8px', border: '1px solid #e4e6eb',
+                                    fontSize: '14px', fontFamily: 'inherit', resize: 'vertical',
                                     backgroundColor: '#f0f2f5',
                                     opacity: updating[asset.rowIndex] ? 0.5 : 1
                                 }}
@@ -482,10 +741,8 @@
 
                         {/* Approval Buttons */}
                         <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: '1fr 1fr 1fr',
-                            gap: '8px',
-                            padding: '0 12px 12px 12px'
+                            display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
+                            gap: '8px', padding: '0 12px 12px 12px'
                         }}>
                             {[
                                 { label: 'Approve', icon: '✓', status: 'Approved', color: '#10b981' },
@@ -499,20 +756,14 @@
                                     style={{
                                         padding: '10px 8px',
                                         backgroundColor: updating[asset.rowIndex] ? '#ccc' : btn.color,
-                                        color: 'white',
-                                        border: 'none',
-                                        borderRadius: '6px',
-                                        fontSize: '13px',
-                                        fontWeight: '600',
+                                        color: 'white', border: 'none', borderRadius: '6px',
+                                        fontSize: '13px', fontWeight: '600',
                                         cursor: updating[asset.rowIndex] ? 'not-allowed' : 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '4px',
-                                        transition: 'opacity 0.2s'
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        gap: '4px', transition: 'opacity 0.2s'
                                     }}
-                                    onMouseOver={(e) => { if (!updating[asset.rowIndex]) e.target.style.opacity = '0.9'; }}
-                                    onMouseOut={(e) => { e.target.style.opacity = '1'; }}
+                                    onMouseOver={e => { if (!updating[asset.rowIndex]) e.target.style.opacity = '0.9'; }}
+                                    onMouseOut={e => { e.target.style.opacity = '1'; }}
                                 >
                                     {updating[asset.rowIndex] ? '⏳' : `${btn.icon} ${btn.label}`}
                                 </button>
@@ -520,16 +771,20 @@
                         </div>
                     </div>
 
-                    {showLightbox && (
+                    {lightboxUrl && (
                         <Lightbox
-                            mediaUrl={asset.assetUrl}
-                            mediaType={isVideo ? 'video' : 'image'}
-                            onClose={() => setShowLightbox(false)}
+                            mediaUrl={lightboxUrl}
+                            mediaType={lightboxType}
+                            onClose={() => setLightboxUrl(null)}
                         />
                     )}
                 </>
             );
         };
+
+        // =====================================================
+        // MAIN PORTAL COMPONENT
+        // =====================================================
 
         const CreativeApprovalPortal = () => {
             const [creativeAssets, setCreativeAssets] = useState([]);
@@ -541,9 +796,13 @@
             const [activeFilter, setActiveFilter] = useState('all');
             const [adStatusFilter, setAdStatusFilter] = useState('all');
 
-            useEffect(() => {
-                fetchData();
-            }, []);
+            // Edit mode state
+            const [isAuthenticated, setIsAuthenticated] = useState(false);
+            const [showPasscodeModal, setShowPasscodeModal] = useState(false);
+            const [editingContent, setEditingContent] = useState({});
+            const [savingContent, setSavingContent] = useState({});
+
+            useEffect(() => { fetchData(); }, []);
 
             const fetchData = async () => {
                 try {
@@ -578,18 +837,33 @@
                     setClientInfo(extractedClientInfo);
 
                     if (assetsData.values && assetsData.values.length > 1) {
-                        const assets = assetsData.values.slice(1).map((row, index) => ({
-                            rowIndex: index + 2,
-                            approvalStatus: row[CONFIG.ASSETS_COLUMNS.APPROVAL_STATUS] || 'Pending',
-                            adStatus: row[CONFIG.ASSETS_COLUMNS.AD_STATUS] || 'Draft',
-                            adName: row[CONFIG.ASSETS_COLUMNS.AD_NAME] || '',
-                            description: row[CONFIG.ASSETS_COLUMNS.DESCRIPTION] || '',
-                            campaignAngle: row[CONFIG.ASSETS_COLUMNS.CAMPAIGN_ANGLE] || '',
-                            headline: row[CONFIG.ASSETS_COLUMNS.HEADLINE] || '',
-                            adCopyBody: row[CONFIG.ASSETS_COLUMNS.AD_COPY_BODY] || '',
-                            assetUrl: row[CONFIG.ASSETS_COLUMNS.DIRECT_URL] || '',  // Use Direct URL (column I) for images
-                            clientNote: row[CONFIG.ASSETS_COLUMNS.CLIENT_NOTE] || ''
-                        }));
+                        const assets = assetsData.values.slice(1).map((row, index) => {
+                            // Build media URLs array: Column I first, then M, N, O, P
+                            // Column I is already formula-converted; fall back to converting Column H
+                            const primaryUrl = row[CONFIG.ASSETS_COLUMNS.DIRECT_URL] ||
+                                convertMediaUrl(row[CONFIG.ASSETS_COLUMNS.GDRIVE_LINK]);
+                            const rawMediaUrls = [
+                                primaryUrl,
+                                convertMediaUrl(row[CONFIG.ASSETS_COLUMNS.MEDIA_2]),
+                                convertMediaUrl(row[CONFIG.ASSETS_COLUMNS.MEDIA_3]),
+                                convertMediaUrl(row[CONFIG.ASSETS_COLUMNS.MEDIA_4]),
+                                convertMediaUrl(row[CONFIG.ASSETS_COLUMNS.MEDIA_5])
+                            ].filter(url => url !== null && url !== undefined && url.trim() !== '');
+
+                            return {
+                                rowIndex: index + 2,
+                                approvalStatus: row[CONFIG.ASSETS_COLUMNS.APPROVAL_STATUS] || 'Pending',
+                                adStatus: row[CONFIG.ASSETS_COLUMNS.AD_STATUS] || 'Draft',
+                                adName: row[CONFIG.ASSETS_COLUMNS.AD_NAME] || '',
+                                description: row[CONFIG.ASSETS_COLUMNS.DESCRIPTION] || '',
+                                campaignAngle: row[CONFIG.ASSETS_COLUMNS.CAMPAIGN_ANGLE] || '',
+                                headline: row[CONFIG.ASSETS_COLUMNS.HEADLINE] || '',
+                                adCopyBody: row[CONFIG.ASSETS_COLUMNS.AD_COPY_BODY] || '',
+                                mediaUrls: rawMediaUrls,
+                                assetUrl: rawMediaUrls[0] || '',
+                                clientNote: row[CONFIG.ASSETS_COLUMNS.CLIENT_NOTE] || ''
+                            };
+                        });
 
                         setCreativeAssets(assets);
                     }
@@ -617,7 +891,8 @@
                             action: 'updateApprovalStatus',
                             rowIndex: asset.rowIndex,
                             approvalStatus: newStatus,
-                            clientNote: notes
+                            clientNote: notes,
+                            adName: asset.adName
                         })
                     });
 
@@ -637,16 +912,10 @@
 
                     showNotification(`✓ Status: ${newStatus}!`, 'success');
 
-                    // Auto-switch to appropriate tab
-                    if (newStatus.toLowerCase() === 'approved') {
-                        setActiveFilter('approved');
-                    } else if (newStatus.toLowerCase() === 'needs edit') {
-                        setActiveFilter('needs edit');
-                    } else if (newStatus.toLowerCase() === 'rejected') {
-                        setActiveFilter('rejected');
-                    } else if (newStatus.toLowerCase() === 'pending') {
-                        setActiveFilter('pending');
-                    }
+                    if (newStatus.toLowerCase() === 'approved') setActiveFilter('approved');
+                    else if (newStatus.toLowerCase() === 'needs edit') setActiveFilter('needs edit');
+                    else if (newStatus.toLowerCase() === 'rejected') setActiveFilter('rejected');
+                    else if (newStatus.toLowerCase() === 'pending') setActiveFilter('pending');
 
                 } catch (err) {
                     showNotification('✗ Failed to update', 'error');
@@ -657,6 +926,96 @@
                         return updated;
                     });
                 }
+            };
+
+            const updateAdContent = async (asset) => {
+                const edits = editingContent[asset.rowIndex];
+                if (!edits) return;
+
+                setSavingContent(prev => ({ ...prev, [asset.rowIndex]: true }));
+
+                // Build media URLs payload (raw URLs that the user pasted)
+                const mediaUpdates = {};
+                if (edits.mediaUrl_0 !== undefined) mediaUpdates.gdriveLink = edits.mediaUrl_0;
+                if (edits.mediaUrl_1 !== undefined) mediaUpdates.media2 = edits.mediaUrl_1;
+                if (edits.mediaUrl_2 !== undefined) mediaUpdates.media3 = edits.mediaUrl_2;
+                if (edits.mediaUrl_3 !== undefined) mediaUpdates.media4 = edits.mediaUrl_3;
+                if (edits.mediaUrl_4 !== undefined) mediaUpdates.media5 = edits.mediaUrl_4;
+
+                try {
+                    await fetch(CONFIG.APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'updateAdContent',
+                            rowIndex: asset.rowIndex,
+                            headline: edits.headline !== undefined ? edits.headline : asset.headline,
+                            adCopyBody: edits.adCopyBody !== undefined ? edits.adCopyBody : asset.adCopyBody,
+                            description: edits.description !== undefined ? edits.description : asset.description,
+                            adName: asset.adName,
+                            ...mediaUpdates
+                        })
+                    });
+
+                    // Optimistic update for text fields
+                    const updatedAsset = {
+                        headline: edits.headline !== undefined ? edits.headline : asset.headline,
+                        adCopyBody: edits.adCopyBody !== undefined ? edits.adCopyBody : asset.adCopyBody,
+                        description: edits.description !== undefined ? edits.description : asset.description
+                    };
+
+                    // Optimistic update for media URLs (convert and rebuild mediaUrls array)
+                    const newMediaUrls = [...(asset.mediaUrls || [])];
+                    if (edits.mediaUrl_0 !== undefined) {
+                        newMediaUrls[0] = convertMediaUrl(edits.mediaUrl_0) || newMediaUrls[0];
+                    }
+                    for (let i = 1; i <= 4; i++) {
+                        if (edits[`mediaUrl_${i}`] !== undefined) {
+                            const converted = convertMediaUrl(edits[`mediaUrl_${i}`]);
+                            if (converted) {
+                                newMediaUrls[i] = converted;
+                            }
+                        }
+                    }
+
+                    setCreativeAssets(prev =>
+                        prev.map(a =>
+                            a.rowIndex === asset.rowIndex
+                                ? {
+                                    ...a,
+                                    ...updatedAsset,
+                                    mediaUrls: newMediaUrls.filter(u => u),
+                                    assetUrl: newMediaUrls[0] || a.assetUrl
+                                }
+                                : a
+                        )
+                    );
+
+                    // Clear edit state for this row
+                    setEditingContent(prev => {
+                        const updated = { ...prev };
+                        delete updated[asset.rowIndex];
+                        return updated;
+                    });
+
+                    showNotification('✓ Content updated!', 'success');
+                } catch (err) {
+                    showNotification('✗ Failed to save changes', 'error');
+                } finally {
+                    setSavingContent(prev => {
+                        const updated = { ...prev };
+                        delete updated[asset.rowIndex];
+                        return updated;
+                    });
+                }
+            };
+
+            const handleContentChange = (rowIndex, field, value) => {
+                setEditingContent(prev => ({
+                    ...prev,
+                    [rowIndex]: { ...prev[rowIndex], [field]: value }
+                }));
             };
 
             const handleNotesChange = (rowIndex, value) => {
@@ -670,7 +1029,7 @@
                     position: fixed; top: 20px; right: 20px; padding: 16px 24px;
                     background-color: ${type === 'success' ? '#10b981' : '#ef4444'};
                     color: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                    z-index: 9999; animation: slideIn 0.3s ease-out;
+                    z-index: 9999; animation: slideIn 0.3s ease-out; font-size: 14px; font-weight: 600;
                 `;
                 document.body.appendChild(notification);
                 setTimeout(() => {
@@ -682,7 +1041,6 @@
             const getFilteredAssets = () => {
                 let filtered = creativeAssets;
 
-                // Filter by approval status
                 if (activeFilter !== 'all') {
                     filtered = filtered.filter(asset =>
                         asset.approvalStatus?.toLowerCase() === activeFilter ||
@@ -690,11 +1048,9 @@
                     );
                 }
 
-                // Filter by ad status
                 if (adStatusFilter !== 'all') {
                     filtered = filtered.filter(asset => {
                         const statusInfo = getAdStatusInfo(asset.adStatus);
-                        // Match against the filter ID
                         if (adStatusFilter === 'live' && statusInfo === CONFIG.AD_STATUSES.LIVE) return true;
                         if (adStatusFilter === 'in_draft' && statusInfo === CONFIG.AD_STATUSES.IN_DRAFT) return true;
                         if (adStatusFilter === 'launched_leads_no_calls' && statusInfo === CONFIG.AD_STATUSES.LAUNCHED_LEADS_NO_CALLS) return true;
@@ -714,7 +1070,6 @@
                 const approved = creativeAssets.filter(a => a.approvalStatus?.toLowerCase() === 'approved').length;
                 const needsEdit = creativeAssets.filter(a => a.approvalStatus?.toLowerCase() === 'needs edit').length;
                 const rejected = creativeAssets.filter(a => a.approvalStatus?.toLowerCase() === 'rejected').length;
-
                 return { total, pending, approved, needsEdit, rejected };
             };
 
@@ -756,48 +1111,60 @@
             return (
                 <div style={{ minHeight: '100vh', backgroundColor: '#f0f2f5', padding: '20px 40px' }}>
                     <div style={{ maxWidth: '1600px', margin: '0 auto' }}>
+                        {/* Header */}
                         <div style={{
-                            marginBottom: '20px',
-                            padding: '20px',
-                            backgroundColor: 'white',
-                            borderRadius: '12px',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            flexWrap: 'wrap',
-                            gap: '12px'
+                            marginBottom: '20px', padding: '20px', backgroundColor: 'white',
+                            borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            flexWrap: 'wrap', gap: '12px'
                         }}>
                             <div>
                                 <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#050505', marginBottom: '4px' }}>
-                                    🎨 Creative Assets Approval
+                                    🎨 Ads Approval Portal
                                 </h1>
                                 <p style={{ fontSize: '14px', color: '#65676b' }}>
                                     {clientInfo?.businessName || 'Client'}
                                 </p>
                             </div>
-                            <button
-                                onClick={() => window.location.reload()}
-                                style={{
-                                    padding: '10px 20px',
-                                    backgroundColor: '#1877f2',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '6px',
-                                    fontSize: '14px',
-                                    fontWeight: '600',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                🔄 Refresh
-                            </button>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                {isAuthenticated && (
+                                    <div style={{
+                                        padding: '8px 14px', backgroundColor: '#e7f0ff', color: '#1877f2',
+                                        borderRadius: '6px', fontSize: '13px', fontWeight: '600'
+                                    }}>
+                                        ✏️ Edit Mode
+                                    </div>
+                                )}
+                                <a
+                                    href={CONFIG.GDRIVE_FOLDER_URL}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        padding: '10px 20px', backgroundColor: '#f0f2f5', color: '#050505',
+                                        border: '1px solid #dadde1', borderRadius: '6px', fontSize: '14px',
+                                        fontWeight: '600', cursor: 'pointer', textDecoration: 'none',
+                                        display: 'inline-flex', alignItems: 'center', gap: '6px'
+                                    }}
+                                >
+                                    📁 Creative Assets
+                                </a>
+                                <button
+                                    onClick={() => window.location.reload()}
+                                    style={{
+                                        padding: '10px 20px', backgroundColor: '#1877f2', color: 'white',
+                                        border: 'none', borderRadius: '6px', fontSize: '14px',
+                                        fontWeight: '600', cursor: 'pointer'
+                                    }}
+                                >
+                                    🔄 Refresh
+                                </button>
+                            </div>
                         </div>
 
+                        {/* Stats */}
                         <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                            gap: '12px',
-                            marginBottom: '20px'
+                            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                            gap: '12px', marginBottom: '20px'
                         }}>
                             {[
                                 { count: stats.total, label: 'Total', color: '#6b7280' },
@@ -807,11 +1174,8 @@
                                 { count: stats.rejected, label: 'Rejected', color: '#ef4444' }
                             ].map((stat, idx) => (
                                 <div key={idx} style={{
-                                    backgroundColor: 'white',
-                                    padding: '16px',
-                                    borderRadius: '8px',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-                                    textAlign: 'center'
+                                    backgroundColor: 'white', padding: '16px', borderRadius: '8px',
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)', textAlign: 'center'
                                 }}>
                                     <div style={{ fontSize: '32px', fontWeight: '700', color: stat.color }}>
                                         {stat.count}
@@ -836,21 +1200,15 @@
                                     { id: 'needs edit', label: 'Needs Edit' },
                                     { id: 'rejected', label: 'Rejected' }
                                 ].map(tab => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveFilter(tab.id)}
+                                    <button key={tab.id} onClick={() => setActiveFilter(tab.id)}
                                         style={{
                                             padding: '8px 16px',
                                             backgroundColor: activeFilter === tab.id ? '#1877f2' : 'white',
                                             color: activeFilter === tab.id ? 'white' : '#65676b',
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            fontSize: '13px',
-                                            fontWeight: '600',
-                                            cursor: 'pointer',
+                                            border: 'none', borderRadius: '8px', fontSize: '13px',
+                                            fontWeight: '600', cursor: 'pointer',
                                             boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                                        }}
-                                    >
+                                        }}>
                                         {tab.label}
                                     </button>
                                 ))}
@@ -872,34 +1230,26 @@
                                     { id: 'rejected_by_meta', label: '🚫 Rejected by Meta', color: '#dc2626' },
                                     { id: 'not_launched', label: '⏸️ Not Launched', color: '#9ca3af' }
                                 ].map(tab => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setAdStatusFilter(tab.id)}
+                                    <button key={tab.id} onClick={() => setAdStatusFilter(tab.id)}
                                         style={{
                                             padding: '8px 16px',
                                             backgroundColor: adStatusFilter === tab.id ? tab.color : 'white',
                                             color: adStatusFilter === tab.id ? 'white' : '#65676b',
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            fontSize: '13px',
-                                            fontWeight: '600',
-                                            cursor: 'pointer',
+                                            border: 'none', borderRadius: '8px', fontSize: '13px',
+                                            fontWeight: '600', cursor: 'pointer',
                                             boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                                        }}
-                                    >
+                                        }}>
                                         {tab.label}
                                     </button>
                                 ))}
                             </div>
                         </div>
 
+                        {/* Cards Grid */}
                         {filteredAssets.length === 0 ? (
                             <div style={{
-                                backgroundColor: 'white',
-                                borderRadius: '12px',
-                                padding: '60px 20px',
-                                textAlign: 'center',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                                backgroundColor: 'white', borderRadius: '12px', padding: '60px 20px',
+                                textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                             }}>
                                 <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
                                 <div style={{ fontSize: '20px', fontWeight: '600', color: '#050505' }}>
@@ -924,11 +1274,25 @@
                                         onStatusUpdate={updateAssetStatus}
                                         editNotes={editNotes}
                                         onNotesChange={handleNotesChange}
+                                        isAuthenticated={isAuthenticated}
+                                        editingContent={editingContent}
+                                        onContentChange={handleContentChange}
+                                        onContentSave={updateAdContent}
+                                        savingContent={savingContent}
+                                        onEditClick={() => setShowPasscodeModal(true)}
                                     />
                                 ))}
                             </div>
                         )}
                     </div>
+
+                    {/* Passcode Modal */}
+                    {showPasscodeModal && (
+                        <PasscodeModal
+                            onSuccess={() => setIsAuthenticated(true)}
+                            onClose={() => setShowPasscodeModal(false)}
+                        />
+                    )}
 
                     <style>
                         {`
