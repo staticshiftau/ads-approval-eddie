@@ -71,13 +71,22 @@
             API_KEY: 'AIzaSyABznAS0fH0tYNh6wlS_iEL08b6znNJCL8',
             CREATIVE_ASSETS_SHEET: 'Ads Masterlist',
             CLIENT_INFO_SHEET: 'Client Info',
-            APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzyOjeUnw43AIEvjIy8XGaIGtijkNvVLRyIUdGKjIwisj8dHV0ycoOlMHCIwxxJ-jU/exec',
+            APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzXNb1PO0Xz5XiIRcFttc_mmLig5a9KzvFaM8yG2w9DqEIg-DKu2c1zfllVFRHX7EPq/exec',
 
             // Edit mode passcode (for Static Shift team only)
             EDIT_PASSCODE: 'staticshift',
 
             // GDrive creative assets folder
             GDRIVE_FOLDER_URL: 'https://drive.google.com/drive/folders/1NbKd5ApBrfjzrS8NwTk8bbOjeONPWxJP?usp=drive_link',
+
+            // Activity Log sheet tab (for team notes)
+            ACTIVITY_LOG_SHEET: 'Activity Log',
+
+            // n8n webhook URL for Slack notifications (paste your n8n webhook URL here)
+            N8N_WEBHOOK_URL: '',
+
+            // Portal URL (for Slack message links back to the portal)
+            PORTAL_URL: '',
 
         // =====================================================
         // END CONFIGURATION - DO NOT EDIT BELOW THIS LINE
@@ -158,6 +167,42 @@
             return lower.endsWith('.mp4') || lower.endsWith('.mov') ||
                    lower.endsWith('.webm') || lower.endsWith('.avi') ||
                    lower.includes('video');
+        };
+
+        // Format timestamp to relative time (e.g. "2 min ago", "yesterday")
+        const getRelativeTime = (timestamp) => {
+            const now = new Date();
+            const date = new Date(timestamp);
+            const diffMs = now - date;
+            const diffMin = Math.floor(diffMs / 60000);
+            const diffHr = Math.floor(diffMs / 3600000);
+            const diffDay = Math.floor(diffMs / 86400000);
+
+            if (diffMin < 1) return 'just now';
+            if (diffMin < 60) return `${diffMin} min ago`;
+            if (diffHr < 24) return `${diffHr} hr${diffHr > 1 ? 's' : ''} ago`;
+            if (diffDay === 1) return 'yesterday';
+            if (diffDay < 7) return `${diffDay} days ago`;
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        };
+
+        // Send notification to n8n webhook (for Slack)
+        const sendNotification = (eventType, data) => {
+            if (!CONFIG.N8N_WEBHOOK_URL) return;
+            try {
+                fetch(CONFIG.N8N_WEBHOOK_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        event: eventType,
+                        adName: data.adName || '',
+                        details: data.details || '',
+                        author: data.author || 'Team member',
+                        portalUrl: CONFIG.PORTAL_URL,
+                        timestamp: new Date().toISOString()
+                    })
+                });
+            } catch (e) { /* silent fail - don't block UI */ }
         };
 
         // =====================================================
@@ -265,7 +310,8 @@
 
         const CreativeAssetCard = ({
             asset, clientInfo, updating, onStatusUpdate, editNotes, onNotesChange,
-            isAuthenticated, editingContent, onContentChange, onContentSave, savingContent, onEditClick
+            isAuthenticated, editingContent, onContentChange, onContentSave, savingContent, onEditClick,
+            activityNotes, authorName, onAuthorChange, onPostNote, postingNote
         }) => {
             const [mediaErrors, setMediaErrors] = useState({});
             const [lightboxUrl, setLightboxUrl] = useState(null);
@@ -273,6 +319,12 @@
             const [isExpanded, setIsExpanded] = useState(false);
             const [showVariants, setShowVariants] = useState(false);
             const [swappingMedia, setSwappingMedia] = useState(null); // which media slot is being swapped (0=hero, 1-4=variants)
+            const [showNotes, setShowNotes] = useState(false);
+            const [newNoteText, setNewNoteText] = useState('');
+
+            const cardNotes = activityNotes[asset.rowIndex] || [];
+            const noteCount = cardNotes.length;
+            const isPostingNote = postingNote[asset.rowIndex];
 
             const variantUrls = asset.mediaUrls && asset.mediaUrls.length > 1 ? asset.mediaUrls.slice(1) : [];
             const hasVariants = variantUrls.length > 0;
@@ -739,6 +791,132 @@
                             />
                         </div>
 
+                        {/* Team Notes - Collapsible */}
+                        <div style={{ borderTop: '1px solid #e4e6eb' }}>
+                            <button
+                                onClick={() => setShowNotes(!showNotes)}
+                                style={{
+                                    width: '100%', padding: '10px 12px', border: 'none',
+                                    backgroundColor: showNotes ? '#f0f7ff' : '#f8f9fa', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                    fontSize: '13px', fontWeight: '600',
+                                    color: showNotes ? '#1877f2' : '#65676b'
+                                }}
+                            >
+                                <span>
+                                    Notes{noteCount > 0 ? ` (${noteCount})` : ''}
+                                </span>
+                                <span style={{
+                                    fontSize: '16px', transition: 'transform 0.2s',
+                                    transform: showNotes ? 'rotate(180deg)' : 'rotate(0deg)'
+                                }}>
+                                    ▼
+                                </span>
+                            </button>
+
+                            {showNotes && (
+                                <div style={{ backgroundColor: '#f8f9fa', padding: '12px' }}>
+                                    {/* Notes Timeline */}
+                                    {cardNotes.length > 0 ? (
+                                        <div style={{ marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            {cardNotes.map((note, idx) => (
+                                                <div key={idx} style={{
+                                                    backgroundColor: 'white', borderRadius: '8px',
+                                                    padding: '10px 12px', border: '1px solid #e4e6eb'
+                                                }}>
+                                                    <div style={{
+                                                        display: 'flex', justifyContent: 'space-between',
+                                                        alignItems: 'center', marginBottom: '4px'
+                                                    }}>
+                                                        <span style={{
+                                                            fontSize: '13px', fontWeight: '600', color: '#050505'
+                                                        }}>
+                                                            {note.author}
+                                                        </span>
+                                                        <span style={{
+                                                            fontSize: '11px', color: '#65676b'
+                                                        }}>
+                                                            {getRelativeTime(note.timestamp)}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{
+                                                        fontSize: '13px', color: '#050505', lineHeight: '1.4',
+                                                        whiteSpace: 'pre-wrap'
+                                                    }}>
+                                                        {note.noteText}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div style={{
+                                            fontSize: '13px', color: '#65676b', textAlign: 'center',
+                                            padding: '8px 0', marginBottom: '12px'
+                                        }}>
+                                            No notes yet. Be the first to add one.
+                                        </div>
+                                    )}
+
+                                    {/* Add Note Input */}
+                                    <div style={{
+                                        display: 'flex', gap: '8px', alignItems: 'flex-start'
+                                    }}>
+                                        <input
+                                            type="text"
+                                            value={authorName}
+                                            onChange={e => onAuthorChange(e.target.value)}
+                                            placeholder="Your name"
+                                            style={{
+                                                width: '100px', padding: '8px 10px',
+                                                border: '1px solid #e4e6eb', borderRadius: '6px',
+                                                fontSize: '12px', backgroundColor: 'white',
+                                                outline: 'none', flexShrink: 0
+                                            }}
+                                        />
+                                        <input
+                                            type="text"
+                                            value={newNoteText}
+                                            onChange={e => setNewNoteText(e.target.value)}
+                                            onKeyDown={e => {
+                                                if (e.key === 'Enter' && newNoteText.trim() && authorName.trim()) {
+                                                    onPostNote(asset, newNoteText);
+                                                    setNewNoteText('');
+                                                }
+                                            }}
+                                            placeholder="Type a note..."
+                                            disabled={isPostingNote}
+                                            style={{
+                                                flex: 1, padding: '8px 10px',
+                                                border: '1px solid #e4e6eb', borderRadius: '6px',
+                                                fontSize: '13px', backgroundColor: 'white',
+                                                outline: 'none', opacity: isPostingNote ? 0.5 : 1
+                                            }}
+                                        />
+                                        <button
+                                            onClick={() => {
+                                                if (newNoteText.trim() && authorName.trim()) {
+                                                    onPostNote(asset, newNoteText);
+                                                    setNewNoteText('');
+                                                }
+                                            }}
+                                            disabled={!newNoteText.trim() || !authorName.trim() || isPostingNote}
+                                            style={{
+                                                padding: '8px 14px', backgroundColor:
+                                                    (!newNoteText.trim() || !authorName.trim() || isPostingNote) ? '#e4e6eb' : '#1877f2',
+                                                color: (!newNoteText.trim() || !authorName.trim() || isPostingNote) ? '#65676b' : 'white',
+                                                border: 'none', borderRadius: '6px',
+                                                fontSize: '12px', fontWeight: '600',
+                                                cursor: (!newNoteText.trim() || !authorName.trim() || isPostingNote) ? 'not-allowed' : 'pointer',
+                                                flexShrink: 0
+                                            }}
+                                        >
+                                            {isPostingNote ? 'Posting...' : 'Post'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         {/* Approval Buttons */}
                         <div style={{
                             display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
@@ -802,6 +980,13 @@
             const [editingContent, setEditingContent] = useState({});
             const [savingContent, setSavingContent] = useState({});
 
+            // Activity notes state
+            const [activityNotes, setActivityNotes] = useState({});   // { rowIndex: [notes] }
+            const [authorName, setAuthorName] = useState(
+                sessionStorage.getItem('portalAuthorName') || ''
+            );
+            const [postingNote, setPostingNote] = useState({});       // { rowIndex: true } while posting
+
             useEffect(() => { fetchData(); }, []);
 
             const fetchData = async () => {
@@ -809,9 +994,11 @@
                     setLoading(true);
                     setError(null);
 
-                    const [assetsResponse, clientResponse] = await Promise.all([
+                    const [assetsResponse, clientResponse, activityResponse] = await Promise.all([
                         fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values/${CONFIG.CREATIVE_ASSETS_SHEET}?key=${CONFIG.API_KEY}`),
-                        fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values/${CONFIG.CLIENT_INFO_SHEET}?key=${CONFIG.API_KEY}`)
+                        fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values/${CONFIG.CLIENT_INFO_SHEET}?key=${CONFIG.API_KEY}`),
+                        fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values/${CONFIG.ACTIVITY_LOG_SHEET}?key=${CONFIG.API_KEY}`)
+                            .catch(() => ({ ok: false })) // Don't fail if Activity Log tab doesn't exist yet
                     ]);
 
                     if (!assetsResponse.ok || !clientResponse.ok) {
@@ -820,6 +1007,27 @@
 
                     const assetsData = await assetsResponse.json();
                     const clientData = await clientResponse.json();
+
+                    // Parse activity log into grouped map { rowIndex: [notes] }
+                    const notesMap = {};
+                    if (activityResponse.ok) {
+                        try {
+                            const activityData = await activityResponse.json();
+                            if (activityData.values && activityData.values.length > 1) {
+                                activityData.values.slice(1).forEach(row => {
+                                    const timestamp = row[0] || '';
+                                    const rowIndex = parseInt(row[1]);
+                                    const author = row[2] || '';
+                                    const noteText = row[3] || '';
+                                    if (rowIndex && noteText) {
+                                        if (!notesMap[rowIndex]) notesMap[rowIndex] = [];
+                                        notesMap[rowIndex].push({ timestamp, author, noteText });
+                                    }
+                                });
+                            }
+                        } catch (e) { /* Activity log parse error - ignore */ }
+                    }
+                    setActivityNotes(notesMap);
 
                     let extractedClientInfo = {
                         businessName: '', websiteUrl: '', destinationUrl: '', profileImage: ''
@@ -912,6 +1120,13 @@
 
                     showNotification(`✓ Status: ${newStatus}!`, 'success');
 
+                    // Send n8n notification for approval status change
+                    sendNotification('approval', {
+                        adName: asset.adName,
+                        details: newStatus,
+                        author: 'Client'
+                    });
+
                     if (newStatus.toLowerCase() === 'approved') setActiveFilter('approved');
                     else if (newStatus.toLowerCase() === 'needs edit') setActiveFilter('needs edit');
                     else if (newStatus.toLowerCase() === 'rejected') setActiveFilter('rejected');
@@ -1000,6 +1215,13 @@
                     });
 
                     showNotification('✓ Content updated!', 'success');
+
+                    // Send n8n notification for content edit
+                    sendNotification('content_edit', {
+                        adName: asset.adName,
+                        details: 'Content updated',
+                        author: authorName || 'Team member'
+                    });
                 } catch (err) {
                     showNotification('✗ Failed to save changes', 'error');
                 } finally {
@@ -1020,6 +1242,59 @@
 
             const handleNotesChange = (rowIndex, value) => {
                 setEditNotes(prev => ({ ...prev, [rowIndex]: value }));
+            };
+
+            const handleAuthorChange = (name) => {
+                setAuthorName(name);
+                sessionStorage.setItem('portalAuthorName', name);
+            };
+
+            const postNote = async (asset, noteText) => {
+                if (!noteText.trim() || !authorName.trim()) return;
+
+                setPostingNote(prev => ({ ...prev, [asset.rowIndex]: true }));
+
+                try {
+                    await fetch(CONFIG.APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'addNote',
+                            rowIndex: asset.rowIndex,
+                            author: authorName.trim(),
+                            noteText: noteText.trim()
+                        })
+                    });
+
+                    // Optimistic UI update
+                    const newNote = {
+                        timestamp: new Date().toISOString(),
+                        author: authorName.trim(),
+                        noteText: noteText.trim()
+                    };
+                    setActivityNotes(prev => ({
+                        ...prev,
+                        [asset.rowIndex]: [...(prev[asset.rowIndex] || []), newNote]
+                    }));
+
+                    // Send n8n notification
+                    sendNotification('note_posted', {
+                        adName: asset.adName,
+                        details: noteText.trim(),
+                        author: authorName.trim()
+                    });
+
+                    showNotification('Note posted!', 'success');
+                } catch (err) {
+                    showNotification('Failed to post note', 'error');
+                } finally {
+                    setPostingNote(prev => {
+                        const updated = { ...prev };
+                        delete updated[asset.rowIndex];
+                        return updated;
+                    });
+                }
             };
 
             const showNotification = (message, type) => {
@@ -1280,6 +1555,11 @@
                                         onContentSave={updateAdContent}
                                         savingContent={savingContent}
                                         onEditClick={() => setShowPasscodeModal(true)}
+                                        activityNotes={activityNotes}
+                                        authorName={authorName}
+                                        onAuthorChange={handleAuthorChange}
+                                        onPostNote={postNote}
+                                        postingNote={postingNote}
                                     />
                                 ))}
                             </div>
