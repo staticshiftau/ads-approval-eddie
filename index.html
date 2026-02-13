@@ -190,18 +190,15 @@
         const sendNotification = (eventType, data) => {
             if (!CONFIG.N8N_WEBHOOK_URL) return;
             try {
-                fetch(CONFIG.N8N_WEBHOOK_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        event: eventType,
-                        adName: data.adName || '',
-                        details: data.details || '',
-                        author: data.author || 'Team member',
-                        portalUrl: CONFIG.PORTAL_URL,
-                        timestamp: new Date().toISOString()
-                    })
+                const payload = JSON.stringify({
+                    event: eventType,
+                    adName: data.adName || '',
+                    details: data.details || '',
+                    author: data.author || 'Team member',
+                    portalUrl: CONFIG.PORTAL_URL,
+                    timestamp: new Date().toISOString()
                 });
+                navigator.sendBeacon(CONFIG.N8N_WEBHOOK_URL, new Blob([payload], { type: 'application/json' }));
             } catch (e) { /* silent fail - don't block UI */ }
         };
 
