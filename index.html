@@ -198,7 +198,7 @@
                     portalUrl: CONFIG.PORTAL_URL,
                     timestamp: new Date().toISOString()
                 });
-                navigator.sendBeacon(CONFIG.N8N_WEBHOOK_URL, new Blob([payload], { type: 'application/json' }));
+                navigator.sendBeacon(CONFIG.N8N_WEBHOOK_URL, new Blob([payload], { type: 'text/plain' }));
             } catch (e) { /* silent fail - don't block UI */ }
         };
 
