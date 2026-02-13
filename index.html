@@ -1127,11 +1127,6 @@
                         author: 'Client'
                     });
 
-                    if (newStatus.toLowerCase() === 'approved') setActiveFilter('approved');
-                    else if (newStatus.toLowerCase() === 'needs edit') setActiveFilter('needs edit');
-                    else if (newStatus.toLowerCase() === 'rejected') setActiveFilter('rejected');
-                    else if (newStatus.toLowerCase() === 'pending') setActiveFilter('pending');
-
                 } catch (err) {
                     showNotification('✗ Failed to update', 'error');
                 } finally {
