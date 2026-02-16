@@ -1124,8 +1124,7 @@
                     // Send n8n notification for approval status change
                     sendNotification('approval', {
                         adName: asset.adName,
-                        details: newStatus,
-                        author: 'Client'
+                        details: newStatus
                     });
 
                 } catch (err) {
